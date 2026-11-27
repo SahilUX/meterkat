@@ -1,0 +1,480 @@
+{
+  "generatedAt": "2026-01-01T00:00:00Z",
+  "host": "Fixture computer",
+  "companionVersion": "2.2.0",
+  "providers": [
+    {
+      "id": "claude",
+      "name": "Claude",
+      "plan": "max",
+      "account": "claude@example.test",
+      "status": "ok",
+      "error": null,
+      "fetchedAt": "2026-01-01T00:00:00Z",
+      "windows": [
+        {
+          "id": "five_hour",
+          "kind": "session",
+          "label": "5-hour",
+          "percent": 1.0,
+          "resetsAt": "2026-01-01T00:00:00Z",
+          "windowSeconds": 1
+        },
+        {
+          "id": "weekly",
+          "kind": "weekly",
+          "label": "Weekly",
+          "percent": 1.0,
+          "resetsAt": "2026-01-01T00:00:00Z",
+          "windowSeconds": 1
+        },
+        {
+          "id": "weekly_fable",
+          "kind": "model",
+          "label": "Fable",
+          "percent": 1.0,
+          "resetsAt": "2026-01-01T00:00:00Z",
+          "windowSeconds": 1
+        }
+      ],
+      "details": [
+        {
+          "label": "Extra usage",
+          "value": "Fixture detail"
+        }
+      ],
+      "breakdown": {
+        "title": "Weekly usage by product",
+        "window": "weekly",
+        "asOf": "2026-01-01T00:00:00Z",
+        "rows": [
+          {
+            "key": "claude_code",
+            "label": "Claude Code",
+            "percent": 1.0
+          },
+          {
+            "key": "chat",
+            "label": "Chats",
+            "percent": 1.0
+          },
+          {
+            "key": "cowork",
+            "label": "Cowork",
+            "percent": 1.0
+          },
+          {
+            "key": "other",
+            "label": "Other",
+            "percent": 1.0
+          }
+        ]
+      },
+      "apiCost": {
+        "weekUSD": 1.0,
+        "monthUSD": 1.0,
+        "weekTokens": 1,
+        "monthTokens": 1,
+        "priced": 1,
+        "unpriced": 1,
+        "since": "2026-01-01T00:00:00Z",
+        "periods": {
+          "day": {
+            "usd": 1.0,
+            "tokens": 1,
+            "input": 1,
+            "output": 1,
+            "cacheRead": 1,
+            "cacheWrite": 1,
+            "priced": 1,
+            "unpriced": 1,
+            "models": [
+              {
+                "model": "claude-opus-5-5",
+                "tokens": 1,
+                "usd": 1.0
+              },
+              {
+                "model": "claude-sonnet-5",
+                "tokens": 1,
+                "usd": 1.0
+              }
+            ]
+          },
+          "week": {
+            "usd": 1.0,
+            "tokens": 1,
+            "input": 1,
+            "output": 1,
+            "cacheRead": 1,
+            "cacheWrite": 1,
+            "priced": 1,
+            "unpriced": 1,
+            "models": [
+              {
+                "model": "claude-opus-5-5",
+                "tokens": 1,
+                "usd": 1.0
+              },
+              {
+                "model": "claude-opus-4-8",
+                "tokens": 1,
+                "usd": 1.0
+              },
+              {
+                "model": "claude-sonnet-5",
+                "tokens": 1,
+                "usd": 1.0
+              }
+            ]
+          },
+          "month": {
+            "usd": 1.0,
+            "tokens": 1,
+            "input": 1,
+            "output": 1,
+            "cacheRead": 1,
+            "cacheWrite": 1,
+            "priced": 1,
+            "unpriced": 1,
+            "models": [
+              {
+                "model": "claude-opus-5-5",
+                "tokens": 1,
+                "usd": 1.0
+              },
+              {
+                "model": "claude-sonnet-5",
+                "tokens": 1,
+                "usd": 1.0
+              },
+              {
+                "model": "claude-fable-5-1",
+                "tokens": 1,
+                "usd": 1.0
+              },
+              {
+                "model": "claude-sonnet-5-5",
+                "tokens": 1,
+                "usd": 1.0
+              },
+              {
+                "model": "claude-opus-4-8",
+                "tokens": 1,
+                "usd": 1.0
+              },
+              {
+                "model": "claude-haiku-4-5",
+                "tokens": 1,
+                "usd": 1.0
+              }
+            ]
+          },
+          "all": {
+            "usd": 1.0,
+            "tokens": 1,
+            "input": 1,
+            "output": 1,
+            "cacheRead": 1,
+            "cacheWrite": 1,
+            "priced": 1,
+            "unpriced": 1,
+            "models": [
+              {
+                "model": "claude-opus-5",
+                "tokens": 1,
+                "usd": 1.0
+              },
+              {
+                "model": "claude-sonnet-5",
+                "tokens": 1,
+                "usd": 1.0
+              },
+              {
+                "model": "claude-opus-5-5",
+                "tokens": 1,
+                "usd": 1.0
+              },
+              {
+                "model": "claude-opus-4-8",
+                "tokens": 1,
+                "usd": 1.0
+              },
+              {
+                "model": "claude-fable-5",
+                "tokens": 1,
+                "usd": 1.0
+              },
+              {
+                "model": "claude-fable-5-1",
+                "tokens": 1,
+                "usd": 1.0
+              },
+              {
+                "model": "claude-haiku-4-5",
+                "tokens": 1,
+                "usd": 1.0
+              },
+              {
+                "model": "claude-sonnet-5-5",
+                "tokens": 1,
+                "usd": 1.0
+              }
+            ]
+          }
+        },
+        "estimatedThrough": "2026-01-01T00:00:00Z"
+      }
+    },
+    {
+      "id": "openai",
+      "name": "ChatGPT Codex",
+      "plan": "plus",
+      "account": "openai@example.test",
+      "status": "ok",
+      "error": null,
+      "fetchedAt": "2026-01-01T00:00:00Z",
+      "windows": [
+        {
+          "id": "five_hour",
+          "kind": "session",
+          "label": "5-hour",
+          "percent": 1.0,
+          "resetsAt": "2026-01-01T00:00:00Z",
+          "windowSeconds": 1
+        },
+        {
+          "id": "weekly",
+          "kind": "weekly",
+          "label": "Weekly",
+          "percent": 1.0,
+          "resetsAt": "2026-01-01T00:00:00Z",
+          "windowSeconds": 1
+        }
+      ],
+      "details": [
+        {
+          "label": "Limit resets available",
+          "value": "Fixture detail"
+        }
+      ],
+      "apiCost": {
+        "weekUSD": 1.0,
+        "monthUSD": 1.0,
+        "weekTokens": 1,
+        "monthTokens": 1,
+        "priced": 1,
+        "unpriced": 1,
+        "since": "2026-01-01T00:00:00Z",
+        "periods": {
+          "day": {
+            "usd": 1.0,
+            "tokens": 1,
+            "input": 1,
+            "output": 1,
+            "cacheRead": 1,
+            "cacheWrite": 1,
+            "priced": 1,
+            "unpriced": 1,
+            "models": [
+              {
+                "model": "gpt-6.1-sol",
+                "tokens": 1,
+                "usd": 1.0
+              },
+              {
+                "model": "gpt-6-luna",
+                "tokens": 1,
+                "usd": 1.0
+              }
+            ]
+          },
+          "week": {
+            "usd": 1.0,
+            "tokens": 1,
+            "input": 1,
+            "output": 1,
+            "cacheRead": 1,
+            "cacheWrite": 1,
+            "priced": 1,
+            "unpriced": 1,
+            "models": [
+              {
+                "model": "gpt-6.1-sol",
+                "tokens": 1,
+                "usd": 1.0
+              },
+              {
+                "model": "gpt-6-luna",
+                "tokens": 1,
+                "usd": 1.0
+              }
+            ]
+          },
+          "month": {
+            "usd": 1.0,
+            "tokens": 1,
+            "input": 1,
+            "output": 1,
+            "cacheRead": 1,
+            "cacheWrite": 1,
+            "priced": 1,
+            "unpriced": 1,
+            "models": [
+              {
+                "model": "gpt-6.1-sol",
+                "tokens": 1,
+                "usd": 1.0
+              },
+              {
+                "model": "gpt-5.6-sol",
+                "tokens": 1,
+                "usd": 1.0
+              },
+              {
+                "model": "gpt-6-sol",
+                "tokens": 1,
+                "usd": 1.0
+              },
+              {
+                "model": "gpt-6-astra",
+                "tokens": 1,
+                "usd": 1.0
+              },
+              {
+                "model": "gpt-5.6-terra",
+                "tokens": 1,
+                "usd": 1.0
+              },
+              {
+                "model": "gpt-6-luna",
+                "tokens": 1,
+                "usd": 1.0
+              },
+              {
+                "model": "gpt-5.6-luna",
+                "tokens": 1,
+                "usd": 1.0
+              },
+              {
+                "model": "codex-auto-review",
+                "tokens": 1,
+                "usd": null
+              }
+            ]
+          },
+          "all": {
+            "usd": 1.0,
+            "tokens": 1,
+            "input": 1,
+            "output": 1,
+            "cacheRead": 1,
+            "cacheWrite": 1,
+            "priced": 1,
+            "unpriced": 1,
+            "models": [
+              {
+                "model": "gpt-5.6-sol",
+                "tokens": 1,
+                "usd": 1.0
+              },
+              {
+                "model": "gpt-6.1-sol",
+                "tokens": 1,
+                "usd": 1.0
+              },
+              {
+                "model": "gpt-5.6-terra",
+                "tokens": 1,
+                "usd": 1.0
+              },
+              {
+                "model": "gpt-5.5",
+                "tokens": 1,
+                "usd": 1.0
+              },
+              {
+                "model": "gpt-6-sol",
+                "tokens": 1,
+                "usd": 1.0
+              },
+              {
+                "model": "gpt-6-astra",
+                "tokens": 1,
+                "usd": 1.0
+              },
+              {
+                "model": "codex-auto-review",
+                "tokens": 1,
+                "usd": null
+              },
+              {
+                "model": "gpt-6-luna",
+                "tokens": 1,
+                "usd": 1.0
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "openrouter",
+      "name": "OpenRouter",
+      "plan": "free",
+      "account": null,
+      "status": "ok",
+      "error": null,
+      "fetchedAt": "2026-01-01T00:00:00Z",
+      "windows": [
+        {
+          "id": "daily",
+          "kind": "daily",
+          "label": "Free requests",
+          "percent": 1.0,
+          "resetsAt": "2026-01-01T00:00:00Z",
+          "windowSeconds": 1
+        }
+      ],
+      "details": [
+        {
+          "label": "Spend",
+          "value": "Fixture detail"
+        },
+        {
+          "label": "Credits",
+          "value": "Fixture detail"
+        },
+        {
+          "label": "Free requests",
+          "value": "Fixture detail"
+        }
+      ]
+    },
+    {
+      "id": "copilot",
+      "name": "GitHub Copilot",
+      "plan": "education",
+      "account": "copilot@example.test",
+      "status": "ok",
+      "error": null,
+      "fetchedAt": "2026-01-01T00:00:00Z",
+      "windows": [
+        {
+          "id": "monthly",
+          "kind": "monthly",
+          "label": "Premium requests",
+          "percent": 1.0,
+          "resetsAt": "2026-01-01T00:00:00Z",
+          "windowSeconds": 1
+        }
+      ],
+      "details": [
+        {
+          "label": "Premium requests",
+          "value": "Fixture detail"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+Meterkat.xcodeproj/
+build/
+DerivedData/
+.DS_Store
+__pycache__/
+*.pyc
+CLAUDE.local.md
+
+# Android local tools and build outputs
+Android/.gradle/
+Android/.kotlin/
+Android/local.properties
+Android/**/build/
+
+# Python virtualenvs
+.venv/
+.worktrees/
+
+# Maintainer-only MCP servers
+.mcp.json

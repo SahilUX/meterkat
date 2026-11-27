@@ -1,0 +1,144 @@
+{
+  "config": {
+    "flow_title": "Meterkat ({name})",
+    "step": {
+      "user": {
+        "title": "Connect to a Meterkat companion",
+        "description": "Run `meterkat pair` on the machine that runs the companion. Pairing gives Home Assistant its own access, which you can revoke later with `meterkat devices`.",
+        "menu_options": {
+          "pairing_link": "Paste a pairing link",
+          "url": "Enter the companion's URL and a pairing code",
+          "legacy_token": "Older companion: host, port and token"
+        }
+      },
+      "pairing_link": {
+        "title": "Paste a pairing link",
+        "description": "Paste the `meterkat://pair?...` link from `meterkat pair`. It works once, for 5 minutes. Home Assistant tries the local address first, then the remote one.",
+        "data": {
+          "pairing_link": "Pairing link"
+        }
+      },
+      "url": {
+        "title": "Companion URL and pairing code",
+        "description": "Use this when Home Assistant reaches the companion at an address that isn't in the pairing link, such as an HTTPS reverse proxy. Paste the pairing link, or just its `code=` value, from `meterkat pair`.",
+        "data": {
+          "url": "Companion URL",
+          "pairing_code": "Pairing code or link",
+          "verify_ssl": "Verify the HTTPS certificate",
+          "ca_file": "CA certificate file"
+        },
+        "data_description": {
+          "url": "For example `http://192.168.1.20:47300` or `https://meterkat.example.com`. A bare host uses port 47300.",
+          "verify_ssl": "Turn this off only for a self-signed certificate you trust. Better: give the CA file below.",
+          "ca_file": "Optional path to a PEM file, such as `/config/certs/my-ca.pem`, that signed the proxy's certificate."
+        }
+      },
+      "legacy_token": {
+        "title": "Older companion",
+        "description": "Companions before 2.5.0 can't pair devices individually. Enter the address and the shared token (`token` in `~/.config/meterkat/config.json`). Better: update the companion with `meterkat update`, then add it with a pairing link.",
+        "data": {
+          "host": "Host",
+          "port": "Port",
+          "token": "Token"
+        },
+        "data_description": {
+          "host": "The companion's LAN address or hostname, for example 192.168.1.20."
+        }
+      },
+      "zeroconf_confirm": {
+        "title": "Set up {name}",
+        "description": "Home Assistant found a Meterkat companion at {url}. Run `meterkat pair` on that machine and paste the pairing link or its `code=` value.",
+        "data": {
+          "pairing_code": "Pairing code or link"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Reconnect to the Meterkat companion",
+        "description": "The companion at {host} no longer accepts Home Assistant's access, perhaps because it was revoked or the shared token was rotated. Run `meterkat pair` on it and paste the pairing link or code.",
+        "data": {
+          "pairing_code": "Pairing code or link",
+          "token": "Shared token (older companions)"
+        }
+      },
+      "reconfigure": {
+        "title": "Reconfigure Meterkat",
+        "description": "Change the address or certificate settings. To move off the companion's shared token, run `meterkat pair` and paste the pairing link or code; leave it empty to keep the current access.",
+        "data": {
+          "url": "Companion URL",
+          "pairing_code": "Pairing code or link",
+          "verify_ssl": "Verify the HTTPS certificate",
+          "ca_file": "CA certificate file"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Cannot reach the companion. Check the address and that `meterkat status` shows it running.",
+      "invalid_auth": "The companion rejected the token.",
+      "invalid_link": "That is not a Meterkat pairing link. It starts with `meterkat://pair?`.",
+      "invalid_url": "Enter an http:// or https:// address.",
+      "pairing_failed": "The pairing code is wrong, has expired or was already used. Run `meterkat pair` again.",
+      "not_meterkat": "Something answered, but it isn't a Meterkat companion.",
+      "companion_too_old": "This companion is older than 2.5.0 and can't pair devices individually. Update it with `meterkat update`, or use the older-companion option.",
+      "ssl_error": "The HTTPS certificate isn't trusted. Provide the CA file, or turn off certificate verification.",
+      "ca_file_unreadable": "Cannot read that CA file.",
+      "missing_credentials": "Enter a pairing code or link, or a token."
+    },
+    "abort": {
+      "already_configured": "This companion is already set up.",
+      "reauth_successful": "Reconnected to the companion.",
+      "reconfigure_successful": "The companion's settings were updated.",
+      "wrong_companion": "That belongs to a different companion.",
+      "companion_too_old": "This companion is older than 2.5.0. Update it with `meterkat update`, then add it again."
+    }
+  },
+  "issues": {
+    "shared_token": {
+      "title": "{name} uses the companion's shared token",
+      "description": "This entry still uses the shared token that older apps use, so it can't be revoked on its own. Run `meterkat pair` on the companion, then open the integration, choose **Reconfigure**, and paste the pairing link. Home Assistant then gets its own token, listed in `meterkat devices`."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Meterkat options",
+        "description": "Home Assistant waits for the companion's next snapshot (the companion polls the providers every 120 seconds), so it never causes extra provider calls.",
+        "data": {
+          "scan_interval": "Minimum time between updates"
+        }
+      }
+    }
+  },
+  "entity": {
+    "binary_sensor": {
+      "problem": {
+        "name": "Problem"
+      }
+    },
+    "sensor": {
+      "snapshot": {
+        "name": "Last snapshot"
+      },
+      "status": {
+        "name": "Status",
+        "state": {
+          "ok": "OK",
+          "no_plan": "No plan",
+          "not_signed_in": "Not signed in",
+          "error": "Error"
+        }
+      },
+      "used": {
+        "name": "{window} used"
+      },
+      "resets": {
+        "name": "{window} resets"
+      },
+      "projected": {
+        "name": "{window} projected at reset"
+      },
+      "runs_out": {
+        "name": "{window} runs out"
+      }
+    }
+  }
+}

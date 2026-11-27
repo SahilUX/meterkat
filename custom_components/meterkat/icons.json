@@ -1,0 +1,29 @@
+{
+  "entity": {
+    "sensor": {
+      "used": {
+        "default": "mdi:gauge"
+      },
+      "resets": {
+        "default": "mdi:timer-refresh-outline"
+      },
+      "status": {
+        "default": "mdi:check-circle-outline",
+        "state": {
+          "no_plan": "mdi:cancel",
+          "not_signed_in": "mdi:account-off-outline",
+          "error": "mdi:alert-circle-outline"
+        }
+      },
+      "snapshot": {
+        "default": "mdi:camera-timer"
+      },
+      "projected": {
+        "default": "mdi:chart-line"
+      },
+      "runs_out": {
+        "default": "mdi:battery-alert-variant-outline"
+      }
+    }
+  }
+}

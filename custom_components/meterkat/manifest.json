@@ -1,0 +1,17 @@
+{
+  "domain": "meterkat",
+  "name": "Meterkat",
+  "codeowners": [
+    "@SahilUX"
+  ],
+  "config_flow": true,
+  "documentation": "https://github.com/SahilUX/meterkat/blob/main/companion/README.md#home-assistant",
+  "integration_type": "hub",
+  "iot_class": "local_polling",
+  "issue_tracker": "https://github.com/SahilUX/meterkat/issues",
+  "requirements": [],
+  "version": "1.2.0",
+  "zeroconf": [
+    "_meterkat._tcp.local."
+  ]
+}

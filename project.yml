@@ -1,0 +1,223 @@
+name: Meterkat
+options:
+  bundleIdPrefix: com.sahil
+  deploymentTarget:
+    iOS: "17.0"
+    macOS: "15.0"
+    watchOS: "10.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    DEVELOPMENT_TEAM: 627Y9R25T5
+    CODE_SIGN_STYLE: Automatic
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "1.0"
+    CURRENT_PROJECT_VERSION: "2"
+targets:
+  Meterkat:
+    type: application
+    platform: iOS
+    scheme: {}
+    sources:
+      - App
+      - Shared
+      - path: Watch/WatchPayload.swift
+      - Icon/AppIcon.icon
+      - path: companion/meterkat/SKILL.md
+        buildPhase: resources
+    info:
+      path: App/Info.plist
+      properties:
+        CFBundleDisplayName: Meterkat
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        # Only HTTPS/ATS, which is exempt: skips TestFlight's export-compliance prompt.
+        ITSAppUsesNonExemptEncryption: false
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: true
+        NSCameraUsageDescription: Meterkat uses the camera to scan the pairing QR code shown by the companion on your computer.
+        NSFaceIDUsageDescription: Meterkat asks for Face ID before it revokes a device that can read your machines' usage.
+        NSLocalNetworkUsageDescription: Meterkat connects to the companion on your Mac or Linux machine to read AI provider usage and limits.
+        UIBackgroundModes: [fetch]
+        BGTaskSchedulerPermittedIdentifiers: [com.sahil.meterkat.refresh]
+        CFBundleURLTypes:
+          - CFBundleURLName: com.sahil.meterkat.pair
+            CFBundleURLSchemes: [meterkat]
+    entitlements:
+      path: App/Meterkat.entitlements
+      properties:
+        com.apple.security.application-groups: [group.com.sahil.meterkat]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.sahil.meterkat
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        TARGETED_DEVICE_FAMILY: "1"
+    dependencies:
+      - target: MeterkatWidgets
+      - target: MeterkatWatch
+        embed: true
+  MeterkatWatch:
+    type: application
+    platform: watchOS
+    deploymentTarget: "10.0"
+    sources:
+      - path: Watch
+      - Icon/AppIcon.icon
+    info:
+      path: Watch/AppInfo.plist
+      properties:
+        CFBundleDisplayName: Meterkat
+        WKApplication: true
+        WKCompanionAppBundleIdentifier: com.sahil.meterkat
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.sahil.meterkat.watchkitapp
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        TARGETED_DEVICE_FAMILY: "4"
+  MeterkatWidgets:
+    type: app-extension
+    platform: iOS
+    sources:
+      - Widgets
+      - Shared
+    info:
+      path: Widgets/Info.plist
+      properties:
+        CFBundleDisplayName: Meterkat
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: true
+    entitlements:
+      path: Widgets/MeterkatWidgets.entitlements
+      properties:
+        com.apple.security.application-groups: [group.com.sahil.meterkat]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.sahil.meterkat.widgets
+        TARGETED_DEVICE_FAMILY: "1"
+  MeterkatMac:
+    type: application
+    platform: macOS
+    scheme: {}
+    sources:
+      - path: Mac
+        excludes: [build.sh]
+      - Icon/AppIcon.icon
+      - path: Shared
+        # Widget layouts belong to the widget extension.
+        excludes: [WidgetLayouts.swift]
+      - path: companion/meterkat/SKILL.md
+        buildPhase: resources
+      # The companion, so setup can install and configure it.
+      - path: companion/meterkat.py
+        buildPhase: resources
+      - path: companion/api_cost.py
+        buildPhase: resources
+      - path: companion/qr.py
+        buildPhase: resources
+      - path: companion/devices.py
+        buildPhase: resources
+      - path: companion/discovery.py
+        buildPhase: resources
+      - path: companion/install.sh
+        buildPhase: resources
+    info:
+      path: Mac/Info.plist
+      properties:
+        CFBundleDisplayName: Meterkat
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        LSApplicationCategoryType: public.app-category.developer-tools
+        # Clicking a widget opens meterkat://open.
+        CFBundleURLTypes:
+          - CFBundleURLName: com.sahil.meterkat.mac.open
+            CFBundleURLSchemes: [meterkat]
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: true
+          NSAllowsLocalNetworking: true
+    entitlements:
+      path: Mac/Meterkat.entitlements
+      properties:
+        # Shares the snapshot and the companion's address with the widgets.
+        com.apple.security.application-groups: [627Y9R25T5.com.sahil.meterkat]
+    dependencies:
+      - target: MeterkatMacWidgets
+    settings:
+      base:
+        PRODUCT_NAME: Meterkat
+        PRODUCT_BUNDLE_IDENTIFIER: com.sahil.meterkat.mac
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        MARKETING_VERSION: "2.3"
+        # Notarization needs the hardened runtime. No sandbox: the app reads
+        # ~/.config/meterkat and drives launchctl.
+        ENABLE_HARDENED_RUNTIME: YES
+  MeterkatMacWidgets:
+    type: app-extension
+    platform: macOS
+    sources:
+      # The iOS extension's Info.plist and entitlements would land in this
+      # bundle as resources; the Mac ones live in MacWidgets/.
+      - path: Widgets
+        excludes: [Info.plist, "*.entitlements"]
+      - Shared
+    info:
+      path: MacWidgets/Info.plist
+      properties:
+        CFBundleDisplayName: Meterkat
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+    entitlements:
+      path: MacWidgets/MeterkatMacWidgets.entitlements
+      properties:
+        # macOS widgets must be sandboxed; they read the companion over 127.0.0.1.
+        com.apple.security.app-sandbox: true
+        com.apple.security.network.client: true
+        com.apple.security.application-groups: [627Y9R25T5.com.sahil.meterkat]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.sahil.meterkat.mac.widgets
+        MARKETING_VERSION: "2.3"
+        ENABLE_HARDENED_RUNTIME: YES
+  # Unit tests for the pure logic in Shared/. No host app: the Shared files
+  # it needs are compiled straight into the bundle, so it runs on macOS
+  # without signing an app or booting a simulator.
+  SharedTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: tests/SharedTests
+      - path: Shared/UsageModels.swift
+      - path: Shared/UsageProjection.swift
+      - path: Shared/Formatting.swift
+      - path: Shared/SharedStore.swift
+      - path: Shared/CompanionClient.swift
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.sahil.meterkat.sharedtests
+        GENERATE_INFOPLIST_FILE: YES
+        # Ad-hoc signed so it runs without a developer certificate.
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGN_IDENTITY: "-"
+        DEVELOPMENT_TEAM: ""
+schemes:
+  SharedTests:
+    build:
+      targets:
+        SharedTests: [test]
+    test:
+      targets: [SharedTests]
+      # Formatting uses the current time zone and locale; pin them.
+      environmentVariables:
+        TZ: UTC
+      commandLineArguments:
+        "-AppleLocale en_US": true
+        "-AppleLanguages (en)": true

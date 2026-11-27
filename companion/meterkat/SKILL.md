@@ -1,0 +1,18 @@
+---
+name: meterkat
+description: Read the user's AI plan usage limits and reset times from the Meterkat companion on this computer, and stop long runs before a limit. Use when asked about remaining Claude, Codex, or other supported provider limits, or to guard a long agent run.
+---
+
+# Meterkat limits
+
+For a single provider, run `meterkat usage --provider ID` to get its latest cached JSON from the local companion. Use `claude` for Claude and `openai` for ChatGPT Codex; `meterkat usage --help` lists all provider IDs. Run `meterkat usage` when the user asks for usage across providers. If `meterkat` is not on `PATH`, use `~/.local/bin/meterkat` with the same arguments. An empty `providers` array means the requested provider is absent from the snapshot, usually because it is disabled.
+
+To read the current usage rate, run `meterkat history --provider ID` (or `meterkat history` for every provider). Each `series[]` item contains a `prediction` when there is enough current-cycle history: `ratePerHour` is the usage rate in percentage points per hour, `current` is the latest percent used, `projectedAtReset` is the expected percent at reset, and `runsOutAt` is the estimated time the limit reaches 100%. Use `--window WINDOW_ID` to select one window, such as `five_hour` or `weekly`. A missing `prediction` means the companion has insufficient history or the window has no usable reset/length; do not infer a zero rate. This is a trend estimate, not a provider-reported instantaneous rate.
+
+Add `--refresh` when the user asks for a fresh reading; the service refreshes all enabled providers, at most once every 15 seconds. If the command fails, report its error and suggest `meterkat status` on this computer. The companion must be installed and running on the same Mac or Linux machine as this skill.
+
+Read `providers[].status` before reporting a limit. For `ok`, each `windows[]` item has a `kind`, a `label`, `percent` **used** and `resetsAt` in UTC. `kind` is one of `session` (the short rolling window, usually 5 hours), `weekly`, `daily`, `monthly`, `model` (a per-model window whose length is `windowSeconds`) or `credit`; match on `kind`, since `label` is display text. Remaining allowance is `max(0, 100 - percent)` percent. Treat a reset time in the past as an expired reading and ask for a refreshed snapshot. `generatedAt` and each provider's `fetchedAt` tell you how old the data is. `stale` is always present; when it is `true`, label the reading as stale and include the provider's `error`. `no_plan`, `not_signed_in`, and `error` are not zero usage; use the provider's `error` text when present. Optional `details` may include credits or spend. In `breakdown.rows`, `percent` is a share of that window's usage, not a share of its limit.
+
+To stop a long run before a limit, run `meterkat watch --provider claude` in the background. It prints a line only when a reading changes and exits with code 3 after a `LIMIT` line that gives the window's kind, percent, and reset time. Defaults are 85% for `session` windows and 95% for the rest; `--at 70` sets every kind, `--at session=70` or `--at model=off` sets one. `meterkat watch --once` checks once and exits 0 (below every threshold), 3 (at one), or 4 (no usable reading: the provider is absent, not `ok`, stale, or has no live window). Treat exit 4 as unknown, not as safe to continue, and check `meterkat status` before starting more work. `watch` uses the service's own polling and makes no provider calls.
+
+This command reads the companion's local authenticated endpoint. It never needs the pairing token in the prompt or in a command line argument. Keep the full JSON on this computer and answer with only the readings the user requested.
