@@ -4,7 +4,7 @@ Tracks AI plan usage. `companion/` is a stdlib-only Python 3.9+ HTTP server and 
 
 Stage: beta
 
-Maintainers keep private, per-machine instructions (project lead charter, deploy hosts) in the gitignored `CLAUDE.local.md`; read it too when it exists.
+The gitignored `CLAUDE.local.md` holds per-machine notes, such as deploy hosts. Read it too when it exists.
 
 ## Rules
 
