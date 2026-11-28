@@ -8,6 +8,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -247,11 +248,14 @@ private fun WidgetContent(
     val padding = if (size.height < 140.dp) 8 else 12
     Column(
         GlanceModifier.fillMaxSize()
-            .background(GlanceTheme.colors.widgetBackground)
+            .background(
+                if (state.preferences.dynamicColor) GlanceTheme.colors.widgetBackground
+                else androidx.glance.color.ColorProvider(day = Color(0xFFF2F2F7), night = Color(0xFF000000))
+            )
             .padding(padding.dp)
     ) {
         when {
-            state.clients.isEmpty() -> EmptyWidget(context, "Open Meterkat to pair a computer.")
+            state.clients.isEmpty() -> EmptyWidget(context, "Open Meterkat to pair a client.")
             visible.isEmpty() ->
                 EmptyWidget(context, "No visible accounts. Check Meterkat settings and connection.")
             kind !in listOf(WidgetKind.ALL, WidgetKind.OVERVIEW) && account == null ->

@@ -105,7 +105,7 @@ class WidgetConfigurationActivity : ComponentActivity() {
                             if (providers.isEmpty())
                                 Text(
                                     if (data.clients.isEmpty())
-                                        "Pair a computer in Meterkat before adding this widget."
+                                        "Pair a client in Meterkat before adding this widget."
                                     else
                                         "No visible accounts. Check your connection and provider settings in Meterkat."
                                 )

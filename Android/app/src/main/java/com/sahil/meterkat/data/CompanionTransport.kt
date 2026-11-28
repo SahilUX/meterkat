@@ -81,7 +81,7 @@ class CompanionTransport {
             }
         }
         throw IOException(
-            "Couldn't reach this computer. Check the companion and your network or Tailscale connection."
+            "Couldn't reach this client. Check the companion and your network or Tailscale connection."
         )
     }
 
@@ -181,12 +181,12 @@ class CompanionTransport {
             401 ->
                 throw DeviceApiException(
                     DeviceApiException.Kind.Rejected,
-                    "This phone's access was revoked or is no longer accepted. Pair this computer again.",
+                    "This phone's access was revoked or is no longer accepted. Pair this client again.",
                 )
             403 ->
                 throw DeviceApiException(
                     DeviceApiException.Kind.Forbidden,
-                    "This phone isn't an owner on that computer. Run meterkat pair --owner on it to get owner access.",
+                    "This phone isn't an owner on that client. Run meterkat pair --owner on it to get owner access.",
                 )
             404 ->
                 throw DeviceApiException(
@@ -237,7 +237,7 @@ class CompanionTransport {
             }
         }
         throw IOException(
-            "Couldn't reach this computer. Check the companion and your network or Tailscale connection."
+            "Couldn't reach this client. Check the companion and your network or Tailscale connection."
         )
     }
 

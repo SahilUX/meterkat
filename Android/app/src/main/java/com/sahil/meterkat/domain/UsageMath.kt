@@ -200,3 +200,88 @@ object UsageProjection {
         )
     }
 }
+
+/** Where usage stands against an even spend through the window. */
+enum class PaceStatus {
+    Ahead,
+    Under,
+    On,
+}
+
+object Pace {
+    /** Points of difference below which usage still counts as "on even pace". */
+    const val THRESHOLD = 5.0
+
+    /** Used percent minus the share of the window that has passed, in points. Null without timing. */
+    fun delta(used: Double, elapsed: Double?): Double? = elapsed?.let { used - it * 100 }
+
+    fun status(used: Double, elapsed: Double?): PaceStatus? =
+        delta(used, elapsed)?.let {
+            when {
+                it > THRESHOLD -> PaceStatus.Ahead
+                it < -THRESHOLD -> PaceStatus.Under
+                else -> PaceStatus.On
+            }
+        }
+}
+
+/** What to spend to make a limit last: [points] per day for long windows, per hour for short ones. */
+data class Budget(val points: Double, val perDay: Boolean)
+
+/** A limit that its projection says will run out before it resets. */
+data class NextLimit(
+    val provider: ProviderUsage,
+    val window: UsageWindow,
+    val projection: Projection,
+    val runsOutAt: Instant,
+    val resetsAt: Instant,
+)
+
+object UsageOutlook {
+    /**
+     * Prediction for one window, from the companion's own figures when it sent them and from the
+     * recorded history otherwise. Null for saved or failed data and for windows without a reset.
+     */
+    fun projection(
+        provider: ProviderUsage,
+        window: UsageWindow,
+        history: UsageHistory?,
+        now: Instant,
+    ): Projection? {
+        if (provider.status != "ok" || provider.stale || provider.sourceIsStale) return null
+        val series =
+            history?.series?.firstOrNull {
+                it.provider == provider.identityKey && it.window == window.id
+            }
+        return series?.prediction?.let { UsageProjection.from(it, window, now) }
+            ?: UsageProjection.make(window, series?.points.orEmpty(), now)
+    }
+
+    /**
+     * The usage to stay under per day (or hour) from now until the reset to reach it. Hourly for
+     * windows up to two days (the 5-hour session) and for the last day of any window, where a
+     * per-day figure would overstate what is left. Null when the limit is reached or has reset.
+     */
+    fun budget(window: UsageWindow, now: Instant): Budget? {
+        val reset = instant(window.resetsAt)?.takeIf { it > now } ?: return null
+        val seconds = reset.epochSecond - now.epochSecond
+        val current = window.effectivePercent(now)
+        if (current >= 100 || seconds <= 0) return null
+        val length = window.windowSeconds?.takeIf { it > 0 } ?: seconds
+        val perDay = length > 2 * 86_400 && seconds >= 86_400
+        return Budget((100 - current) / (seconds / (if (perDay) 86_400.0 else 3_600.0)), perDay)
+    }
+
+    /** The window that runs out first, among those of [providers] projected to run out. */
+    fun nextLimit(providers: List<ProviderUsage>, history: UsageHistory?, now: Instant): NextLimit? =
+        providers
+            .flatMap { provider ->
+                provider.windows.mapNotNull { window ->
+                    val projection = projection(provider, window, history, now) ?: return@mapNotNull null
+                    val runsOut = projection.runsOutAt ?: return@mapNotNull null
+                    val reset = instant(window.resetsAt) ?: return@mapNotNull null
+                    NextLimit(provider, window, projection, runsOut, reset)
+                }
+            }
+            .minByOrNull { it.runsOutAt }
+}

@@ -4,12 +4,12 @@
     android:background="@drawable/widget_preview_background" android:orientation="vertical"
     android:padding="10dp" android:layout_marginStart="6dp">
     <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
-        android:text="OpenAI" android:textColor="#269B7B" android:textSize="15sp" android:textStyle="bold" />
+        android:text="OpenAI" android:textColor="#10A37F" android:textSize="15sp" android:textStyle="bold" />
     <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
-        android:text="5-hour · 68%" android:textColor="#18201B" android:textSize="12sp" />
+        android:text="5-hour · 68%" android:textColor="#1C1C1E" android:textSize="12sp" />
     <ProgressBar style="?android:attr/progressBarStyleHorizontal" android:layout_width="match_parent"
-        android:layout_height="8dp" android:progress="68" android:progressTint="#269B7B"
-        android:progressBackgroundTint="#DFE5DC" />
+        android:layout_height="8dp" android:progress="68" android:progressTint="#10A37F"
+        android:progressBackgroundTint="#E5E5EA" />
     <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
-        android:text="Resets in 2h 45m" android:textColor="#68736B" android:textSize="10sp" />
+        android:text="Resets in 2h 45m" android:textColor="#6C6C72" android:textSize="10sp" />
 </LinearLayout>

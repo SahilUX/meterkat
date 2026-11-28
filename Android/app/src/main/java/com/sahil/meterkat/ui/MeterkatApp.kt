@@ -12,8 +12,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -30,7 +28,10 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
@@ -41,7 +42,7 @@ import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions
 import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 import com.sahil.meterkat.R
 import com.sahil.meterkat.data.MeterkatRepository
-import com.sahil.meterkat.domain.UsageProjection
+import com.sahil.meterkat.domain.UsageOutlook
 import com.sahil.meterkat.model.*
 import java.time.Instant
 import java.time.ZoneId
@@ -92,10 +93,8 @@ fun MeterkatApp(repository: MeterkatRepository, incoming: String?, consume: () -
     }
     fun previousPage(): String =
         when {
-            page.startsWith("provider:") -> "providers"
             page.startsWith("devices:") -> "clients"
             page == "settings" -> "usage"
-            page == "providers" -> "settings"
             else -> "settings"
         }
     LaunchedEffect(model) { model.events.collect { snackbar.showSnackbar(it) } }
@@ -137,7 +136,9 @@ fun MeterkatApp(repository: MeterkatRepository, incoming: String?, consume: () -
     MeterkatTheme(state.preferences.dynamicColor) {
         BoxWithConstraints(Modifier.fillMaxSize()) {
             val wide = maxWidth >= 700.dp
+            val topLevel = page == "usage" || page == "settings"
             Scaffold(
+                containerColor = MaterialTheme.colorScheme.background,
                 snackbarHost = { SnackbarHost(snackbar) },
                 topBar = {
                     TopAppBar(
@@ -146,18 +147,21 @@ fun MeterkatApp(repository: MeterkatRepository, incoming: String?, consume: () -
                                 when {
                                     page == "usage" -> "Meterkat"
                                     page == "settings" -> "Settings"
-                                    page == "providers" -> "Providers"
-                                    page == "clients" -> "Computers"
+                                    page == "clients" -> "Clients"
                                     page.startsWith("devices:") -> "Devices"
                                     page == "display" -> "Display"
                                     page.startsWith("provider:") ->
                                         providerNames[page.substringAfter(':')] ?: "Provider"
                                     else -> "Setup"
-                                }
+                                },
+                                style = if (topLevel) MaterialTheme.typography.headlineMedium else MaterialTheme.typography.titleLarge,
+                                fontSize = if (topLevel) 30.sp else 22.sp,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = if (topLevel) (-0.5).sp else 0.sp,
                             )
                         },
                         navigationIcon = {
-                            if (page !in listOf("usage", "settings"))
+                            if (!topLevel)
                                 IconButton(onClick = { page = previousPage() }) {
                                     Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")
                                 }
@@ -172,17 +176,28 @@ fun MeterkatApp(repository: MeterkatRepository, incoming: String?, consume: () -
                                         CircularProgressIndicator(
                                             Modifier.size(20.dp),
                                             strokeWidth = 2.dp,
+                                            color = MaterialTheme.meterkat.accentText,
                                         )
-                                    else Icon(Icons.Default.Refresh, "Refresh usage")
+                                    else
+                                        Icon(
+                                            Icons.Default.Refresh,
+                                            "Refresh usage",
+                                            tint = MaterialTheme.meterkat.accentText,
+                                        )
                                 }
                         },
+                        colors =
+                            TopAppBarDefaults.topAppBarColors(
+                                containerColor = MaterialTheme.colorScheme.background,
+                                scrolledContainerColor = MaterialTheme.colorScheme.background,
+                            ),
                     )
                 },
                 bottomBar = { if (!wide) MainNavigation(page) { page = it } },
             ) { padding ->
                 Row(Modifier.padding(padding).fillMaxSize()) {
                     if (wide)
-                        NavigationRail {
+                        NavigationRail(containerColor = MaterialTheme.meterkat.navBar) {
                             NavigationRailItem(
                                 page == "usage",
                                 { page = "usage" },
@@ -209,16 +224,40 @@ fun MeterkatApp(repository: MeterkatRepository, incoming: String?, consume: () -
                                         modifier = Modifier.fillMaxSize(),
                                     ) {
                                         if (state.clients.isEmpty())
-                                            SetupScreen({ pairLink = "" }, { page = "guide" })
-                                        else
-                                            Column(Modifier.fillMaxSize()) {
+                                            SetupScreen(
+                                                scan = { scanPairingCode(context, { pairLink = it }) { scope.launch { snackbar.showSnackbar(it) } } },
+                                                paste = { pairLink = "" },
+                                            )
+                                        else {
+                                            val next =
+                                                remember(visible, state.history, now) {
+                                                    UsageOutlook.nextLimit(visible, state.history, now)
+                                                }
+                                            Box(Modifier.fillMaxSize()) {
                                                 LazyColumn(
-                                                    Modifier.weight(1f),
-                                                    contentPadding = PaddingValues(16.dp),
-                                                    verticalArrangement =
-                                                        Arrangement.spacedBy(16.dp),
+                                                    Modifier.fillMaxSize(),
+                                                    contentPadding =
+                                                        PaddingValues(
+                                                            start = 16.dp,
+                                                            end = 16.dp,
+                                                            top = 4.dp,
+                                                            bottom = if (visible.isNotEmpty()) 96.dp else 16.dp,
+                                                        ),
+                                                    verticalArrangement = Arrangement.spacedBy(14.dp),
                                                 ) {
                                                     state.error?.let { item { Notice(it, true) } }
+                                                    next?.let {
+                                                        item {
+                                                            NextLimitBanner(
+                                                                it,
+                                                                now,
+                                                                showProvider = it.provider.identityKey != selected?.identityKey,
+                                                            ) {
+                                                                selection = it.provider.identityKey
+                                                                detailWindow = it.window.id
+                                                            }
+                                                        }
+                                                    }
                                                     if (selected != null) {
                                                         item {
                                                             ProviderCard(
@@ -236,7 +275,7 @@ fun MeterkatApp(repository: MeterkatRepository, incoming: String?, consume: () -
                                                         item {
                                                             Notice(
                                                                 if (state.providers.isEmpty())
-                                                                    "Waiting for usage from your computers."
+                                                                    "Waiting for usage from your clients."
                                                                 else if (selection.isNotEmpty())
                                                                     "This account is unavailable. Choose another provider below."
                                                                 else
@@ -245,31 +284,32 @@ fun MeterkatApp(repository: MeterkatRepository, incoming: String?, consume: () -
                                                         }
                                                     item {
                                                         Text(
-                                                            "Updated ${age(state.generatedAt,now)} · ${state.clients.size} ${if(state.clients.size==1)"computer" else "computers"}",
-                                                            style =
-                                                                MaterialTheme.typography.bodySmall,
-                                                            color =
-                                                                MaterialTheme.colorScheme
-                                                                    .onSurfaceVariant,
+                                                            updatedFooter(state, now),
+                                                            style = MaterialTheme.typography.bodySmall,
+                                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                                                             modifier = Modifier.fillMaxWidth(),
                                                         )
                                                     }
                                                 }
                                                 if (visible.isNotEmpty())
-                                                    ProviderSwitcher(
+                                                    ProviderPill(
                                                         visible,
                                                         selected?.identityKey.orEmpty(),
+                                                        Modifier.align(Alignment.BottomCenter).padding(bottom = 16.dp),
                                                     ) {
                                                         selection = it
                                                         detailWindow = null
                                                     }
                                             }
+                                        }
                                     }
                                 page == "settings" ->
                                     SettingsScreen(
                                         state,
                                         { page = it },
                                         { permission() },
+                                        update = { prefs -> action { repository.updatePreferences(prefs) } },
                                         onExport = {
                                             action {
                                                 val text =
@@ -293,8 +333,6 @@ fun MeterkatApp(repository: MeterkatRepository, incoming: String?, consume: () -
                                             }
                                         },
                                     )
-                                page == "providers" ->
-                                    ProvidersScreen(state) { id -> page = "provider:$id" }
                                 page == "clients" ->
                                     ClientsScreen(
                                         state,
@@ -327,19 +365,19 @@ fun MeterkatApp(repository: MeterkatRepository, incoming: String?, consume: () -
                                     val client =
                                         state.clients.firstOrNull { it.id == page.substringAfter(':') }
                                     val activity = LocalContext.current.findFragmentActivity()
-                                    // Viewer-only computers have no Devices screen.
+                                    // Viewer-only clients have no Devices screen.
                                     if (client == null || !client.isOwner || activity == null)
                                         Box(Modifier.padding(16.dp)) {
                                             Notice(
                                                 if (client?.authRejected == true)
-                                                    "This phone's access was revoked. Pair this computer again."
-                                                else "Devices need owner access on this computer."
+                                                    "This phone's access was revoked. Pair this client again."
+                                                else "Devices need owner access on this client."
                                             )
                                         }
                                     else
                                         key(client.id) {
                                             DevicesScreen(
-                                                computer = client.name,
+                                                client = client.name,
                                                 load = { repository.devices(client.id) },
                                                 revoke = { repository.revokeDevice(client.id, it) },
                                                 confirm = { title, subtitle, done ->
@@ -368,7 +406,7 @@ fun MeterkatApp(repository: MeterkatRepository, incoming: String?, consume: () -
                                         { prefs -> action { repository.updatePreferences(prefs) } },
                                         { permission() },
                                     )
-                                else -> GuideScreen { pairLink = "" }
+                                else -> SetupScreen(scan = { scanPairingCode(context, { pairLink = it }) { scope.launch { snackbar.showSnackbar(it) } } }, paste = { pairLink = "" })
                             }
                         }
                     }
@@ -397,7 +435,7 @@ fun MeterkatApp(repository: MeterkatRepository, incoming: String?, consume: () -
                                 selection = ""
                             }
                             snackbar.showSnackbar(
-                                if (ownerFor == null) "Computer paired." else "Owner access added."
+                                if (ownerFor == null) "Client paired." else "Owner access added."
                             )
                             ownerFor = null
                         } catch (e: CancellationException) {
@@ -415,8 +453,14 @@ fun MeterkatApp(repository: MeterkatRepository, incoming: String?, consume: () -
             selected.windows
                 .firstOrNull { it.id == detailWindow }
                 ?.let { window ->
-                    ModalBottomSheet(onDismissRequest = { detailWindow = null }) {
-                        WindowDetails(selected, window, state.preferences, state.history, now)
+                    ModalBottomSheet(
+                        onDismissRequest = { detailWindow = null },
+                        containerColor = MaterialTheme.colorScheme.background,
+                        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+                    ) {
+                        WindowDetails(selected, window, state.preferences, state.history, now) {
+                            detailWindow = null
+                        }
                     }
                 }
     }
@@ -431,109 +475,155 @@ private tailrec fun android.content.Context.findFragmentActivity(): androidx.fra
 
 @Composable
 private fun MainNavigation(page: String, select: (String) -> Unit) {
-    NavigationBar {
-        NavigationBarItem(
-            page == "usage",
-            { select("usage") },
-            { Icon(Icons.Default.DataUsage, null) },
-            label = { Text("Usage") },
-        )
-        NavigationBarItem(
-            page != "usage",
-            { select("settings") },
-            { Icon(Icons.Default.Settings, null) },
-            label = { Text("Settings") },
-        )
-    }
-}
-
-@Composable
-fun Notice(text: String, warning: Boolean = false) {
-    Surface(
-        shape = RoundedCornerShape(16.dp),
-        color =
-            if (warning) MaterialTheme.colorScheme.errorContainer
-            else MaterialTheme.colorScheme.surfaceContainer,
-    ) {
-        Row(Modifier.padding(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Icon(if (warning) Icons.Default.WarningAmber else Icons.Default.Info, null)
-            Text(text, style = MaterialTheme.typography.bodyMedium)
-        }
-    }
-}
-
-@Composable
-private fun SetupScreen(pair: () -> Unit, guide: () -> Unit) {
-    Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(28.dp),
-        verticalArrangement = Arrangement.spacedBy(20.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Spacer(Modifier.height(32.dp))
-        Surface(
-            shape = RoundedCornerShape(28.dp),
-            color = MaterialTheme.colorScheme.primaryContainer,
-        ) {
-            Icon(Icons.Default.DataUsage, null, Modifier.padding(24.dp).size(48.dp))
-        }
-        Text(
-            "Your AI usage,\nat a glance.",
-            style = MaterialTheme.typography.headlineLarge,
-            fontWeight = FontWeight.SemiBold,
-        )
-        Text(
-            "Keep track of your limits, see your pace, and know when they're ready again.",
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Button(onClick = pair, modifier = Modifier.fillMaxWidth()) {
-            Icon(Icons.Default.Link, null)
-            Spacer(Modifier.width(8.dp))
-            Text("Pair a computer")
-        }
-        TextButton(onClick = guide) { Text("Set up the companion") }
-        Text(
-            "Provider credentials stay on your computer.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
-}
-
-@Composable
-private fun GuideScreen(pair: () -> Unit) {
-    LazyColumn(
-        contentPadding = PaddingValues(20.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
-        item { Text("Connect Meterkat", style = MaterialTheme.typography.headlineMedium) }
-        item {
-            Notice(
-                "Install and run the Meterkat companion on each computer where you use your AI tools."
+    Column {
+        HorizontalDivider(color = MaterialTheme.meterkat.divider)
+        NavigationBar(containerColor = MaterialTheme.meterkat.navBar, tonalElevation = 0.dp) {
+            NavigationBarItem(
+                page == "usage",
+                { select("usage") },
+                { Icon(Icons.Default.DataUsage, null) },
+                label = { Text("Usage") },
+            )
+            NavigationBarItem(
+                page != "usage",
+                { select("settings") },
+                { Icon(Icons.Default.Settings, null) },
+                label = { Text("Settings") },
             )
         }
-        item {
-            Text("On the computer, run:")
-            Surface(shape = RoundedCornerShape(12.dp)) {
+    }
+}
+
+/** The install line from the README, shown on the not-paired screen. */
+private const val INSTALL_COMMAND =
+    "curl -fsSL https://raw.githubusercontent.com/SahilUX/meterkat/main/install.sh | sh"
+
+/** Opens Google's QR scanner and passes the scanned text on. */
+fun scanPairingCode(context: android.content.Context, found: (String) -> Unit, failed: (String) -> Unit) {
+    GmsBarcodeScanning.getClient(
+            context,
+            GmsBarcodeScannerOptions.Builder()
+                .setBarcodeFormats(Barcode.FORMAT_QR_CODE)
+                .enableAutoZoom()
+                .build(),
+        )
+        .startScan()
+        .addOnSuccessListener { found(it.rawValue.orEmpty()) }
+        .addOnFailureListener { failed("Scanner unavailable. Paste the pairing link instead.") }
+}
+
+/** "Pair your computer": what to install, how to get a pairing code, and how to scan it. */
+@Composable
+private fun SetupScreen(scan: () -> Unit, paste: () -> Unit) {
+    Column(Modifier.fillMaxSize().padding(horizontal = 24.dp)) {
+        Column(
+            Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(top = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(18.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Box(
+                Modifier.size(96.dp)
+                    .clip(RoundedCornerShape(28.dp))
+                    .background(MaterialTheme.colorScheme.primaryContainer),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    Icons.Default.Computer,
+                    null,
+                    Modifier.size(48.dp),
+                    tint = MaterialTheme.meterkat.accentText,
+                )
+            }
+            Text(
+                "Pair your computer",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                fontSize = 26.sp,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            )
+            Text(
+                "Meterkat reads your Claude, OpenAI, Copilot, Gemini, Cursor and other plan limits from a small companion on your Mac or Linux machine.",
+                Modifier.widthIn(max = 340.dp),
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            )
+            Column(
+                Modifier.fillMaxWidth().padding(top = 6.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                SetupStep(1, "Install the companion") {
+                    androidx.compose.foundation.text.selection.SelectionContainer {
+                        Text(
+                            INSTALL_COMMAND,
+                            Modifier.fillMaxWidth()
+                                .padding(top = 8.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(MaterialTheme.colorScheme.background)
+                                .padding(10.dp),
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 12.sp,
+                            lineHeight = 17.sp,
+                        )
+                    }
+                }
+                SetupStep(2, "Show the pairing code") {
+                    Text(
+                        androidx.compose.ui.text.buildAnnotatedString {
+                            append("Run ")
+                            withStyle(
+                                androidx.compose.ui.text.SpanStyle(fontFamily = FontFamily.Monospace, fontSize = 13.sp)
+                            ) {
+                                append("meterkat pair")
+                            }
+                            append(", or open the Meterkat menu bar app on a Mac.")
+                        },
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
+        Column(Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Button(
+                onClick = scan,
+                Modifier.fillMaxWidth().heightIn(min = 56.dp),
+                shape = CircleShape,
+            ) {
+                Icon(Icons.Default.QrCodeScanner, null)
+                Spacer(Modifier.width(10.dp))
+                Text("Scan pairing code", fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+            }
+            TextButton(onClick = paste, Modifier.heightIn(min = 48.dp)) {
                 Text(
-                    "meterkat setup\nmeterkat pair",
-                    Modifier.padding(16.dp),
-                    fontFamily = FontFamily.Monospace,
+                    "Paste pairing link",
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.meterkat.accentText,
                 )
             }
         }
-        item {
-            Text(
-                "Scan the QR code or paste its meterkat://pair link here. Local network works at home. Enable Tailscale on both devices to connect away from home."
-            )
+    }
+}
+
+@Composable
+private fun SetupStep(number: Int, title: String, content: @Composable ColumnScope.() -> Unit) {
+    Card(
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    ) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+            Box(
+                Modifier.size(28.dp).clip(CircleShape).background(Coral),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text("$number", color = androidx.compose.ui.graphics.Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+            }
+            Column(Modifier.weight(1f)) {
+                Text(title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
+                content()
+            }
         }
-        item { Button(onClick = pair) { Text("Pair a computer") } }
-        item {
-            Text(
-                "Add widgets from your Android launcher's widget picker. Enable optional limit and reset alerts in provider settings."
-            )
-        }
-        item { Text("Private alpha · Meterkat 0.1.0", style = MaterialTheme.typography.bodySmall) }
     }
 }
 
@@ -551,7 +641,7 @@ private fun PairingDialog(
     val config = runCatching { PairingLinks.parse(draft) }.getOrNull()
     AlertDialog(
         onDismissRequest = dismiss,
-        title = { Text(if (ownerFor == null) "Pair a computer" else "Get owner access") },
+        title = { Text(if (ownerFor == null) "Add client" else "Get owner access") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
@@ -573,25 +663,14 @@ private fun PairingDialog(
                 )
                 config?.let {
                     Text(
-                        "${it.name?:"Computer"} · ${it.routes.joinToString { r->Uri.parse(r.baseURL).host.orEmpty() }}",
+                        "${it.name?:"Client"} · ${it.routes.joinToString { r->Uri.parse(r.baseURL).host.orEmpty() }}",
                         style = MaterialTheme.typography.bodySmall,
                     )
                 }
                 error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                 TextButton(
                     onClick = {
-                        GmsBarcodeScanning.getClient(
-                                context,
-                                GmsBarcodeScannerOptions.Builder()
-                                    .setBarcodeFormats(Barcode.FORMAT_QR_CODE)
-                                    .enableAutoZoom()
-                                    .build(),
-                            )
-                            .startScan()
-                            .addOnSuccessListener { draft = it.rawValue.orEmpty() }
-                            .addOnFailureListener {
-                                error = "Scanner unavailable. Paste the pairing link instead."
-                            }
+                        scanPairingCode(context, { draft = it }) { error = it }
                     },
                     enabled = !busy,
                 ) {
@@ -620,464 +699,3 @@ private fun PairingDialog(
         dismissButton = { TextButton(onClick = dismiss, enabled = !busy) { Text("Cancel") } },
     )
 }
-
-@Composable
-private fun ProviderSwitcher(
-    providers: List<ProviderUsage>,
-    selection: String,
-    select: (String) -> Unit,
-) {
-    Surface(tonalElevation = 3.dp) {
-        LazyRow(
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            items(providers, key = { it.identityKey }) { p ->
-                FilterChip(
-                    selected = p.identityKey == selection,
-                    onClick = { select(p.identityKey) },
-                    label = { Text(providerNames[p.id] ?: p.name) },
-                    leadingIcon = { ProviderMark(p.id, 24) },
-                    modifier =
-                        Modifier.semantics {
-                            contentDescription = "${p.name}, ${p.account?:"account"}"
-                        },
-                )
-            }
-        }
-    }
-}
-
-@Composable
-internal fun ProviderMark(id: String, size: Int = 40) {
-    val mark =
-        when (id) {
-            "claude" -> R.drawable.provider_claude
-            "openai" -> R.drawable.provider_openai
-            "openrouter" -> R.drawable.provider_openrouter
-            "copilot" -> R.drawable.provider_copilot
-            "gemini" -> R.drawable.provider_gemini
-            "cursor" -> R.drawable.provider_cursor
-            "opencode" -> R.drawable.provider_opencode
-            "zai" -> R.drawable.provider_zai
-            "kimi" -> R.drawable.provider_kimi
-            "minimax" -> R.drawable.provider_minimax
-            "bailian" -> R.drawable.provider_bailian
-            "deepseek" -> R.drawable.provider_deepseek
-            else -> null
-        }
-    Surface(
-        shape = CircleShape,
-        color = providerColor(id).copy(alpha = .15f),
-        modifier = Modifier.size(size.dp),
-    ) {
-        Box(contentAlignment = Alignment.Center) {
-            if (mark != null)
-                Icon(
-                    painterResource(mark),
-                    null,
-                    Modifier.size((size * .55f).dp),
-                    tint = providerColor(id),
-                )
-            else
-                Text(
-                    (providerNames[id] ?: id).take(1),
-                    color = providerColor(id),
-                    fontWeight = FontWeight.Bold,
-                )
-        }
-    }
-}
-
-@Composable
-private fun ProviderCard(
-    provider: ProviderUsage,
-    prefs: UsagePreferences,
-    now: Instant,
-    history: UsageHistory?,
-    select: (UsageWindow) -> Unit,
-) {
-    Card(
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-    ) {
-        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                ProviderMark(provider.id)
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        provider.name,
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                    provider.account?.let {
-                        Text(
-                            it,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
-                provider.plan?.let {
-                    Text(
-                        it.replaceFirstChar(Char::uppercase),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = providerColor(provider.id),
-                    )
-                }
-            }
-            if (provider.sourceIsStale || provider.stale)
-                Notice(
-                    "Saved usage from ${provider.sourceClientName?:"computer"}. ${provider.error.orEmpty()}",
-                    true,
-                )
-            if (provider.status != "ok")
-                Notice(
-                    provider.error
-                        ?: when (provider.status) {
-                            "not_signed_in" -> "Sign in on your computer to see usage."
-                            "no_plan" -> "No plan with usage limits."
-                            else -> "Usage is unavailable."
-                        },
-                    provider.status != "no_plan",
-                )
-            provider.windows.forEachIndexed { index, window ->
-                if (index > 0) HorizontalDivider()
-                WindowSummary(provider, window, prefs, history, now) { select(window) }
-            }
-            if (provider.windows.isEmpty() && provider.status == "ok")
-                Text("No limits reported.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-            if (provider.details.isNotEmpty()) {
-                var expanded by rememberSaveable(provider.identityKey) { mutableStateOf(false) }
-                TextButton(onClick = { expanded = !expanded }) {
-                    Text("Details")
-                    Icon(if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore, null)
-                }
-                if (expanded)
-                    provider.details.forEach {
-                        Column {
-                            Text(it.label, style = MaterialTheme.typography.labelLarge)
-                            Text(
-                                it.value,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    }
-            }
-        }
-    }
-}
-
-@Composable
-private fun WindowSummary(
-    provider: ProviderUsage,
-    window: UsageWindow,
-    prefs: UsagePreferences,
-    history: UsageHistory?,
-    now: Instant,
-    select: () -> Unit,
-) {
-    val used = window.effectivePercent(now)
-    val value = if (prefs.remaining) 100 - used else used
-    val tint = providerColor(provider.id)
-    Column(
-        Modifier.fillMaxWidth().semantics {
-            contentDescription =
-                "${window.label}, ${percent(value)} ${if(prefs.remaining)"remaining" else "used"}, ${resetText(window,now)}"
-        },
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        var inspectedLabel by remember(provider.identityKey, window.id) { mutableStateOf<String?>(null) }
-        Row(
-            Modifier.fillMaxWidth().clickable(onClick = select),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(window.label, style = MaterialTheme.typography.titleMedium)
-            Text(
-                "${percent(value)} ${if(prefs.remaining)"left" else "used"}",
-                color = tint,
-                fontWeight = FontWeight.SemiBold,
-            )
-        }
-        val series = history?.series?.firstOrNull { it.provider == provider.identityKey && it.window == window.id }
-        val points = series?.points.orEmpty()
-        if (prefs.graphs)
-            UsageChart(
-                window,
-                points,
-                prefs.remaining,
-                tint,
-                now,
-                Modifier.fillMaxWidth().height(120.dp),
-                allowProjection =
-                    provider.status == "ok" && !provider.stale && !provider.sourceIsStale,
-                predictionData = series?.prediction,
-                onInspectionChange = { inspectedLabel = it },
-            )
-        else PaceBar(window, prefs.remaining, tint, now)
-        val projection = if (provider.status == "ok" && !provider.stale && !provider.sourceIsStale)
-            series?.prediction?.let { UsageProjection.from(it, window, now) }
-                ?: UsageProjection.make(window, points, now)
-        else null
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(
-                resetText(window, now),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            if (inspectedLabel != null) {
-                Text(
-                    inspectedLabel.orEmpty(),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                    textAlign = androidx.compose.ui.text.style.TextAlign.End,
-                )
-            } else window.elapsed(now)?.let { elapsed ->
-                Text(
-                    if (used > elapsed * 100 + 5) "Now: ahead of even pace"
-                    else if (used < elapsed * 100 - 5) "Now: under even pace" else "Now: on even pace",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = tint,
-                )
-            }
-        }
-        projection?.let {
-            Text(
-                it.runsOutAt?.let { reset -> "Runs out in ~${countdown(reset, now)}" }
-                    ?: "Lasts until reset · ~${percent((100 - it.projectedAtReset).coerceAtLeast(0.0))} left",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-    }
-}
-
-@Composable
-private fun ProviderInsights(provider: ProviderUsage) {
-    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        provider.breakdown?.let { breakdown ->
-            InsightCard(breakdown.title) {
-                breakdown.rows.forEach { row ->
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(row.label)
-                        Text(percent(row.percent))
-                    }
-                }
-                Text(
-                    "Share of this window's usage",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-        provider.apiCost?.let { cost ->
-            var range by rememberSaveable(provider.identityKey) { mutableStateOf("week") }
-            val period =
-                cost.periods?.get(range)
-                    ?: when (range) {
-                        "week" ->
-                            CostPeriod(
-                                cost.weekUSD,
-                                cost.weekTokens,
-                                priced = cost.priced,
-                                unpriced = cost.unpriced,
-                            )
-                        "month" ->
-                            CostPeriod(
-                                cost.monthUSD,
-                                cost.monthTokens,
-                                priced = cost.priced,
-                                unpriced = cost.unpriced,
-                            )
-                        else -> null
-                    }
-            InsightCard("Tokens & estimated API cost") {
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    listOf("day" to "24h", "week" to "7d", "month" to "30d", "all" to "All")
-                        .forEach { (key, label) ->
-                            FilterChip(range == key, { range = key }, { Text(label) })
-                        }
-                }
-                if (period == null) Text("No totals for this range.")
-                else {
-                    Text(
-                        String.format(Locale.US, "$%.2f", period.usd),
-                        style = MaterialTheme.typography.headlineLarge,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                    period.tokens?.let {
-                        Text("${compact(it)} tokens", style = MaterialTheme.typography.titleMedium)
-                    }
-                    listOf(
-                            "Input" to period.input,
-                            "Output" to period.output,
-                            "Cache read" to period.cacheRead,
-                            "Cache write" to period.cacheWrite,
-                        )
-                        .forEach { (name, value) ->
-                            value?.let {
-                                Row(
-                                    Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                ) {
-                                    Text(name)
-                                    Text(compact(it))
-                                }
-                            }
-                        }
-                    Text(
-                        "${period.priced} priced requests · ${period.unpriced} unpriced",
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                    period.models?.take(8)?.forEach { model ->
-                        Row(
-                            Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                        ) {
-                            Text(
-                                model.model,
-                                Modifier.weight(1f),
-                                style = MaterialTheme.typography.bodySmall,
-                            )
-                            Text(compact(model.tokens), style = MaterialTheme.typography.bodySmall)
-                        }
-                    }
-                }
-                Text(
-                    "Estimated standard API cost of recorded CLI tokens. This isn't your plan charge.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                if (cost.machines > 1)
-                    Text(
-                        "Combined from ${cost.machines} computers",
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-            }
-        }
-    }
-}
-
-@Composable
-private fun InsightCard(title: String, content: @Composable ColumnScope.() -> Unit) {
-    Card(
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-    ) {
-        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(
-                title,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-            )
-            content()
-        }
-    }
-}
-
-@Composable
-private fun WindowDetails(
-    provider: ProviderUsage,
-    window: UsageWindow,
-    prefs: UsagePreferences,
-    history: UsageHistory?,
-    now: Instant,
-) {
-    val series = history?.series?.firstOrNull { it.provider == provider.identityKey && it.window == window.id }
-    val points = series?.points.orEmpty()
-    val projection =
-        if (provider.stale || provider.sourceIsStale) null
-        else series?.prediction?.let { UsageProjection.from(it, window, now) }
-            ?: UsageProjection.make(window, points, now)
-    Column(
-        Modifier.verticalScroll(rememberScrollState()).padding(24.dp).navigationBarsPadding(),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
-        Text("${provider.name} · ${window.label}", style = MaterialTheme.typography.titleLarge)
-        Text(
-            "${percent(if(prefs.remaining)100-window.effectivePercent(now) else window.effectivePercent(now))} ${if(prefs.remaining)"left" else "used"}",
-            style = MaterialTheme.typography.displaySmall,
-            color = providerColor(provider.id),
-        )
-        Text(resetText(window, now))
-        instant(window.resetsAt)?.let {
-            Text(
-                DateTimeFormatter.ofPattern("EEE, MMM d · h:mm a z")
-                    .withZone(ZoneId.systemDefault())
-                    .format(it),
-                style = MaterialTheme.typography.bodySmall,
-            )
-        }
-        UsageChart(
-            window,
-            points,
-            prefs.remaining,
-            providerColor(provider.id),
-            now,
-            Modifier.fillMaxWidth().height(220.dp),
-            allowProjection = provider.status == "ok" && !provider.stale && !provider.sourceIsStale,
-            predictionData = series?.prediction,
-        )
-        if (points.isEmpty())
-            Text("No recorded history for this cycle.", style = MaterialTheme.typography.bodySmall)
-        projection?.let {
-            Text(
-                if (it.runsOutAt != null)
-                    "At this pace, the limit may run out in ${countdown(it.runsOutAt,now)}."
-                else
-                    "At this pace, about ${percent((100-it.projectedAtReset).coerceAtLeast(0.0))} may remain at reset."
-            )
-            Text(
-                it.basis,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        Text(
-            "Solid line: recorded usage. Dashed line: steady pace. Dotted line: projection.",
-            style = MaterialTheme.typography.bodySmall,
-        )
-    }
-}
-
-fun percent(value: Double) = String.format(Locale.US, "%.0f%%", value)
-
-fun compact(value: Long) =
-    when {
-        value >= 1_000_000 -> String.format(Locale.US, "%.1fM", value / 1_000_000.0)
-        value >= 1000 -> String.format(Locale.US, "%.1fk", value / 1000.0)
-        else -> value.toString()
-    }
-
-fun countdown(reset: Instant, now: Instant): String {
-    val minutes = ((reset.epochSecond - now.epochSecond).coerceAtLeast(0) / 60)
-    return when {
-        minutes >= 1440 -> "${minutes/1440}d ${(minutes%1440)/60}h"
-        minutes >= 60 -> "${minutes/60}h ${minutes%60}m"
-        minutes > 0 -> "${minutes}m"
-        else -> "less than a minute"
-    }
-}
-
-fun resetText(window: UsageWindow, now: Instant): String =
-    instant(window.resetsAt)?.let {
-        if (it <= now) "Reset · awaiting update" else "Resets in ${countdown(it,now)}"
-    } ?: "No reset time reported"
-
-fun age(value: String?, now: Instant): String =
-    instant(value)?.let {
-        val seconds = (now.epochSecond - it.epochSecond).coerceAtLeast(0)
-        when {
-            seconds < 60 -> "just now"
-            seconds < 3600 -> "${seconds/60}m ago"
-            seconds < 86400 -> "${seconds/3600}h ago"
-            else -> "${seconds/86400}d ago"
-        }
-    } ?: "not yet"

@@ -80,7 +80,7 @@ class MeterkatRepository(private val context: Context) {
                                             } catch (_: Exception) {
                                                 client.copy(
                                                     error =
-                                                        "Couldn't reach this computer. Check the companion, pairing link, or Tailscale."
+                                                        "Couldn't reach this client. Check the companion, pairing link, or Tailscale."
                                                 )
                                             }
                                         dao.save(
@@ -113,7 +113,7 @@ class MeterkatRepository(private val context: Context) {
         if (ownerFor != null) {
             val existing = mutex.withLock { clientRows().firstOrNull { it.first.id == ownerFor }?.first }
             require(existing != null && isSameComputer(existing, candidate)) {
-                "That link is for a different computer."
+                "That link is for a different client."
             }
         }
         val redeemed = candidate.pairingCode?.let { transport.redeemPairingCode(candidate, deviceName()) }
@@ -121,7 +121,7 @@ class MeterkatRepository(private val context: Context) {
         val role = redeemed?.takeIf { it.deviceId != null }?.role
         if (ownerFor != null) {
             require(role == "owner") {
-                "That is a viewer link. Run meterkat pair --owner on the computer to make an owner link."
+                "That is a viewer link. Run meterkat pair --owner on the client to make an owner link."
             }
         }
         mutex.withLock {
@@ -147,7 +147,7 @@ class MeterkatRepository(private val context: Context) {
                             .getOrDefault(false)
                 }
             ) {
-                "This computer is already paired."
+                "This client is already paired."
             }
             val id = targetId ?: UUID.randomUUID().toString()
             val old = rows.firstOrNull { it.id == id }
@@ -162,7 +162,7 @@ class MeterkatRepository(private val context: Context) {
                 )
                     ?: ClientRecord(
                         id,
-                        candidate.name?.takeIf { it.isNotBlank() } ?: "Computer ${rows.size+1}",
+                        candidate.name?.takeIf { it.isNotBlank() } ?: "Client ${rows.size+1}",
                         candidate.routes,
                         role = role,
                         deviceId = redeemed?.deviceId,
@@ -236,9 +236,9 @@ class MeterkatRepository(private val context: Context) {
 
     private suspend fun ownerClient(id: String): Pair<ClientRecord, String> =
         withContext(Dispatchers.IO) {
-            val row = dao.all().firstOrNull { it.id == id } ?: error("That computer is gone.")
+            val row = dao.all().firstOrNull { it.id == id } ?: error("That client is gone.")
             val client = usageJson.decodeFromString<ClientRecord>(row.payload)
-            require(client.isOwner) { "This computer is paired as a viewer. Get owner access first." }
+            require(client.isOwner) { "This client is paired as a viewer. Get owner access first." }
             client to vault.decrypt(row.encryptedToken)
         }
 
@@ -269,7 +269,7 @@ class MeterkatRepository(private val context: Context) {
     }
 
     suspend fun rename(id: String, name: String) = mutate {
-        require(name.isNotBlank()) { "Enter a computer name." }
+        require(name.isNotBlank()) { "Enter a client name." }
         val row = dao.all().first { it.id == id }
         val client = usageJson.decodeFromString<ClientRecord>(row.payload)
         dao.save(row.copy(payload = usageJson.encodeToString(client.copy(name = name.trim()))))
