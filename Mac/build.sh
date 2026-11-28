@@ -7,8 +7,8 @@
 #
 # --notarize needs a "Developer ID Application" certificate for team 627Y9R25T5
 # in the keychain, and notarytool credentials saved under the profile in
-# $NOTARY_PROFILE (default "aiusage", saved before the rename to Meterkat):
-#   xcrun notarytool store-credentials aiusage --apple-id <email> --team-id 627Y9R25T5
+# $NOTARY_PROFILE (default "meterkat-notary"). Store credentials with
+# `xcrun notarytool store-credentials meterkat-notary` before releasing.
 #
 # Output goes to build/mac/ in the repo.
 set -euo pipefail
@@ -17,7 +17,7 @@ REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 OUT="$REPO/build/mac"
 APP_NAME="Meterkat.app"
 TEAM_ID="627Y9R25T5"
-NOTARY_PROFILE="${NOTARY_PROFILE:-aiusage}"
+NOTARY_PROFILE="${NOTARY_PROFILE:-meterkat-notary}"
 
 install=false
 notarize=false
