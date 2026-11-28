@@ -30,7 +30,7 @@ if release:
 else:
     url = "https://api.github.com/repos/SahilUX/meterkat/tarball/main"
 with tempfile.TemporaryDirectory(prefix="meterkat-install-") as temporary:
-    root = pathlib.Path(temporary)
+    root = pathlib.Path(temporary).resolve()
     with tarfile.open(fileobj=io.BytesIO(fetch(url)), mode="r:gz") as archive:
         # Source archives need only regular files and directories. Reject links,
         # devices and paths that could write outside the temporary directory.
@@ -38,7 +38,10 @@ with tempfile.TemporaryDirectory(prefix="meterkat-install-") as temporary:
             target = (root / member.name).resolve()
             if root not in target.parents or not (member.isfile() or member.isdir()):
                 raise SystemExit("Unsafe path in source archive")
-        archive.extractall(root)
+        if hasattr(tarfile, "data_filter"):
+            archive.extractall(root, filter="data")
+        else:
+            archive.extractall(root)
     installers = list(root.glob("*/companion/install.sh"))
     if len(installers) != 1:
         raise SystemExit("Source archive does not contain companion/install.sh")

@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parent.parent
 
 
 class BootstrapTests(unittest.TestCase):
-    def run_bootstrap(self, releases, malicious=False):
+    def run_bootstrap(self, releases, malicious=False, symlinked_temp=False):
         archive = io.BytesIO()
         with tarfile.open(fileobj=archive, mode='w:gz') as tar:
             if malicious:
@@ -36,16 +36,20 @@ class BootstrapTests(unittest.TestCase):
             prelude = '''
 import io, pathlib, urllib.request
 from unittest.mock import patch
-root = pathlib.Path.cwd()
+fixture_root = pathlib.Path.cwd()
 def fetch(request, **kwargs):
     url = request.full_url
     if '/releases?' in url:
-        return io.BytesIO((root / 'releases').read_bytes())
+        return io.BytesIO((fixture_root / 'releases').read_bytes())
     assert url == 'https://example.invalid/release.tar.gz' or url.endswith('/tarball/main'), url
-    return io.BytesIO((root / 'archive').read_bytes())
+    return io.BytesIO((fixture_root / 'archive').read_bytes())
 patch('urllib.request.urlopen', side_effect=fetch).start()
 '''
             environment = dict(os.environ, HOME=str(temporary), XDG_DATA_HOME=str(temporary / 'data'))
+            if symlinked_temp:
+                (temporary / 'real-temp').mkdir()
+                (temporary / 'linked-temp').symlink_to(temporary / 'real-temp', target_is_directory=True)
+                environment['TMPDIR'] = str(temporary / 'linked-temp')
             result = subprocess.run(['python3', '-c', prelude + script, '--files-only'],
                                     cwd=temporary, env=environment, capture_output=True, text=True)
             if malicious:
@@ -64,6 +68,9 @@ patch('urllib.request.urlopen', side_effect=fetch).start()
 
     def test_prerelease_install(self):
         self.run_bootstrap([{'draft': True}, {'draft': False, 'tarball_url': 'https://example.invalid/release.tar.gz'}])
+
+    def test_install_with_symlinked_temp_directory(self):
+        self.run_bootstrap([], symlinked_temp=True)
 
     def test_archive_cannot_escape_temp_directory(self):
         self.run_bootstrap([], malicious=True)
