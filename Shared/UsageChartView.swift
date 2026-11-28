@@ -19,6 +19,8 @@ struct UsageChartView: View {
     @State private var selectedElapsed: Double?
 
     private var tint: Color { UsageFormat.providerTint(providerID) }
+    /// The stretch after the limit is hit, and the run-out point itself.
+    static let blockedColor = Color.orange
 
     var body: some View {
         if window.isReset(at: now) {
@@ -27,8 +29,7 @@ struct UsageChartView: View {
             let cycle = samples
                 .filter { $0.date >= start && $0.date <= now }
                 .sorted { $0.date < $1.date }
-            let projection = predictionData.flatMap { UsageProjection.from($0, window: window, now: now) }
-                ?? UsageProjection.make(window: window, samples: cycle, now: now)
+            let projection = UsageProjection.resolve(window: window, samples: cycle, data: predictionData, now: now)
             if isCompact {
                 VStack(alignment: .leading, spacing: 4) {
                     chart(start: start, length: Double(windowSeconds), cycle: cycle, projection: projection)
@@ -109,13 +110,27 @@ struct UsageChartView: View {
                 .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [5, 4]))
             }
 
-            if let projection, let runsOutAt = projection.runsOutAt {
-                PointMark(
-                    x: .value("Elapsed", runsOutAt.timeIntervalSince(start)),
-                    y: .value(mode.label, plotted(used: 100))
-                )
-                .foregroundStyle(tint)
-                .symbolSize(isCompact ? 30 : 50)
+            // Where the limit is hit, then blocked until the reset.
+            if let blocked = projection?.blockedRange {
+                let from = min(max(blocked.lowerBound.timeIntervalSince(start), 0), length)
+                let to = min(max(blocked.upperBound.timeIntervalSince(start), 0), length)
+                ForEach(Array([from, to].enumerated()), id: \.offset) { _, elapsed in
+                    LineMark(
+                        x: .value("Elapsed", elapsed),
+                        y: .value(mode.label, plotted(used: 100)),
+                        series: .value("Line", "Blocked")
+                    )
+                    .foregroundStyle(Self.blockedColor)
+                    .lineStyle(StrokeStyle(lineWidth: isCompact ? 2.5 : 3.5, lineCap: .round))
+                }
+                if let runsOutAt = projection?.runsOutAt {
+                    PointMark(
+                        x: .value("Elapsed", runsOutAt.timeIntervalSince(start)),
+                        y: .value(mode.label, plotted(used: 100))
+                    )
+                    .foregroundStyle(Self.blockedColor)
+                    .symbolSize(isCompact ? 30 : 55)
+                }
             }
 
             RuleMark(x: .value("Now", nowX))
@@ -263,11 +278,16 @@ struct UsageChartView: View {
         }
     }
 
+    private var showsBlocked: Bool {
+        UsageProjection.resolve(window: window, samples: samples, data: predictionData, now: now)?.blockedRange != nil
+    }
+
     private var legend: some View {
         HStack(spacing: 14) {
             legendItem("Actual", color: tint, dashed: false)
             legendItem("Projected", color: tint.opacity(0.7), dashed: true)
             legendItem("Ideal", color: .secondary, dashed: true)
+            if showsBlocked { legendItem("Blocked", color: Self.blockedColor, dashed: false) }
         }
         .font(.caption)
         .foregroundStyle(.secondary)

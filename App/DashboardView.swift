@@ -50,6 +50,11 @@ struct DashboardView: View {
                         ErrorBanner(message: error)
                     }
                     if let snapshot = store.snapshot {
+                        if let limit = nextLimit(in: providers, selected: selected, now: context.date) {
+                            NextLimitBanner(limit: limit) {
+                                detail = WindowDetail(providerKey: limit.providerKey, windowID: limit.windowID)
+                            }
+                        }
                         if let selected {
                             ProviderPage(
                                 provider: selected,
@@ -91,6 +96,31 @@ struct DashboardView: View {
                     selectedKey = key
                 }
             }
+        }
+    }
+
+    /// The visible window projected to run out soonest, across every shown provider.
+    private func nextLimit(in providers: [ProviderUsage], selected: ProviderUsage?, now: Date) -> NextLimit? {
+        struct Key { var provider: ProviderUsage; var window: UsageWindow }
+        var items: [(id: Key, projection: UsageProjection?)] = []
+        for provider in providers where provider.isOK {
+            for window in provider.windows {
+                let series = store.history?.series(provider: provider.identityKey, window: window.id)
+                let projection = UsageProjection.resolve(window: window, samples: series?.samples ?? [],
+                                                         data: series?.prediction, now: now)
+                items.append((Key(provider: provider, window: window), projection))
+            }
+        }
+        guard let best = UsageProjection.earliestRunOut(items) else { return nil }
+        let title = WindowRow.title(for: best.id.window)
+        // Name the provider when the window isn't on the page below.
+        let isSelected = best.id.provider.identityKey == selected?.identityKey
+        let lines = best.projection.bannerLines(
+            title: isSelected ? title : "\(best.id.provider.name) · \(title)",
+            windowSeconds: best.id.window.windowSeconds)
+        return lines.map {
+            NextLimit(providerKey: best.id.provider.identityKey, windowID: best.id.window.id,
+                      headline: $0.headline, detail: $0.detail)
         }
     }
 
@@ -303,6 +333,53 @@ struct ProviderCard: View {
     }
 }
 
+// MARK: - Next limit banner
+
+/// The window that will run out first, ready to open its detail sheet.
+struct NextLimit: Equatable {
+    var providerKey: String
+    var windowID: String
+    var headline: String
+    var detail: String
+}
+
+/// Shown above the provider page only when a window is projected to run out
+/// before its reset. Tapping opens that window's chart and stats.
+struct NextLimitBanner: View {
+    let limit: NextLimit
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: "exclamationmark.triangle")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(.orange)
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(limit.headline)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.primary)
+                    Text(limit.detail)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+                .multilineTextAlignment(.leading)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.orange.opacity(0.14), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Next limit. \(limit.headline). \(limit.detail)")
+        .accessibilityHint("Shows a graph and projection")
+    }
+}
+
 // MARK: - Window row
 
 struct WindowRow: View {
@@ -327,6 +404,10 @@ struct WindowRow: View {
         }
     }
 
+    private var projection: UsageProjection? {
+        UsageProjection.resolve(window: window, samples: samples, data: predictionData, now: now)
+    }
+
     @ViewBuilder
     private var rowContent: some View {
         let percent = window.effectivePercent(at: now)
@@ -341,12 +422,27 @@ struct WindowRow: View {
                         .foregroundStyle(.tertiary)
                 }
             }
-            UsageReadout(used: percent, mode: barMode)
+            if style == .bars, let summary = projection?.resetSummary(mode: barMode) {
+                ViewThatFits(in: .horizontal) {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        UsageReadout(used: percent, mode: barMode)
+                        Spacer(minLength: 8)
+                        ProjectionLabel(summary: summary)
+                    }
+                    VStack(alignment: .leading, spacing: 2) {
+                        UsageReadout(used: percent, mode: barMode)
+                        ProjectionLabel(summary: summary)
+                    }
+                }
+            } else {
+                UsageReadout(used: percent, mode: barMode)
+            }
             if style == .graph {
                 UsageChartView(window: window, providerID: providerID, mode: barMode, samples: samples, now: now,
                                predictionData: predictionData, isCompact: true)
             } else {
-                PaceBar(window: window, mode: barMode, tint: UsageFormat.providerTint(providerID), at: now)
+                PaceBar(window: window, mode: barMode, tint: UsageFormat.providerTint(providerID), at: now,
+                        projection: projection)
             }
             HStack(alignment: .firstTextBaseline) {
                 Text(UsageFormat.resetTextDetailed(window, now: now))
@@ -376,6 +472,19 @@ struct WindowRow: View {
             if window.kind == "model" || window.id.hasPrefix("weekly_") { return "\(window.label) weekly" }
             return window.label
         }
+    }
+}
+
+/// "About 61% at reset", or "Runs out early" in orange.
+private struct ProjectionLabel: View {
+    let summary: UsageProjection.ResetSummary
+
+    var body: some View {
+        Text(summary.text)
+            .font(.footnote.weight(.semibold))
+            .foregroundStyle(summary.warns ? Color.orange : Color.secondary)
+            .monospacedDigit()
+            .lineLimit(1)
     }
 }
 
@@ -473,8 +582,7 @@ struct WindowDetailSheet: View {
     private func content(provider: ProviderUsage, window: UsageWindow, now: Date) -> some View {
         let samples = store.history?.series(provider: provider.identityKey, window: window.id)?.samples ?? []
         let predictionData = store.history?.series(provider: provider.identityKey, window: window.id)?.prediction
-        let projection = predictionData.flatMap { UsageProjection.from($0, window: window, now: now) }
-            ?? UsageProjection.make(window: window, samples: samples, now: now)
+        let projection = UsageProjection.resolve(window: window, samples: samples, data: predictionData, now: now)
         return VStack(alignment: .leading, spacing: 20) {
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
@@ -521,9 +629,13 @@ struct WindowDetailSheet: View {
             StatRow(title: mode == .used ? "Projected at reset" : "Projected left at reset") {
                 Text(projection.map { UsageFormat.percent(mode.value(used: min($0.projectedAtReset, 100))) } ?? "—")
             }
+            Divider()
+            StatRow(title: "Budget to make it") {
+                Text(projection?.budget(windowSeconds: window.windowSeconds)?.statText ?? "—")
+            }
             if let projection {
                 Divider()
-                outlook(projection, current: current)
+                outlook(projection, window: window, current: current)
                     .font(.subheadline.weight(.semibold))
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.vertical, 10)
@@ -534,13 +646,17 @@ struct WindowDetailSheet: View {
     }
 
     @ViewBuilder
-    private func outlook(_ projection: UsageProjection, current: Double) -> some View {
+    private func outlook(_ projection: UsageProjection, window: UsageWindow, current: Double) -> some View {
         if current >= 100 {
             Label("Limit reached until the reset", systemImage: "xmark.octagon.fill")
                 .foregroundStyle(.red)
-        } else if projection.runsOutAt != nil {
-            Label(projection.outlookText, systemImage: "exclamationmark.triangle.fill")
-                .foregroundStyle(.orange)
+        } else if let lines = projection.detailOutlook(windowSeconds: window.windowSeconds) {
+            Label {
+                (Text(lines.headline).fontWeight(.semibold) + Text(" " + lines.detail).fontWeight(.regular))
+                    .foregroundStyle(.primary)
+            } icon: {
+                Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+            }
         } else {
             Label(projection.outlookText, systemImage: "checkmark.circle.fill")
                 .foregroundStyle(.green)

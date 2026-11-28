@@ -22,33 +22,47 @@ struct PaceBar: View {
     var tint: Color
     var height: CGFloat = 8
     var style: MarkerStyle = .prominent
+    /// Where the fill is projected to end at the reset, 0...100 in the same
+    /// scale as `fill`. Set only for a window that will run out early: the
+    /// stretch between `fill` and this value is shaded orange. Nil draws nothing.
+    var projectedFill: Double?
 
-    init(fill: Double, marker: Double?, tint: Color, height: CGFloat = 8, style: MarkerStyle = .prominent) {
+    init(fill: Double, marker: Double?, tint: Color, height: CGFloat = 8, style: MarkerStyle = .prominent,
+         projectedFill: Double? = nil) {
         self.fill = fill
         self.marker = marker
         self.tint = tint
         self.height = height
         self.style = style
+        self.projectedFill = projectedFill
     }
 
-    /// Bar for a usage window in the given mode.
+    /// Bar for a usage window in the given mode. Pass its projection to
+    /// shade the stretch that will be used up before the reset.
     init(window: UsageWindow, mode: BarMode, tint: Color, at date: Date = .now,
-         height: CGFloat = 8, style: MarkerStyle = .prominent) {
+         height: CGFloat = 8, style: MarkerStyle = .prominent, projection: UsageProjection? = nil) {
         let values = window.barValues(mode: mode, at: date)
-        self.init(fill: values.fill, marker: values.marker, tint: tint, height: height, style: style)
+        self.init(fill: values.fill, marker: values.marker, tint: tint, height: height, style: style,
+                  projectedFill: projection?.barProjectedFill(mode: mode))
     }
 
     var body: some View {
         GeometryReader { geo in
             let width = geo.size.width
             let filled = width * CGFloat(min(max(fill, 0), 100) / 100)
+            let projected = projectedSpan(width: width, filled: filled)
             ZStack(alignment: .leading) {
                 Capsule()
                     .fill(tint.opacity(0.22))
                     .frame(height: height)
+                // `.used` grows toward the projection, so the stretch sits
+                // behind the fill's rounded end; `.remaining` drains into it,
+                // so it tints the part of the fill that will be used up.
+                if let projected, projected.behindFill { projectedStretch(projected, width: width) }
                 Capsule()
                     .fill(tint)
                     .frame(width: fill > 0 ? max(filled, height) : 0, height: height)
+                if let projected, !projected.behindFill { projectedStretch(projected, width: width) }
                 if let marker {
                     markerLine
                         .position(x: min(max(width * CGFloat(marker), lineWidth / 2), width - lineWidth / 2),
@@ -61,8 +75,35 @@ struct PaceBar: View {
         }
         .frame(height: lineHeight)
         .accessibilityElement()
-        .accessibilityLabel("\(Int(fill.rounded())) percent")
+        .accessibilityLabel("\(Int(fill.rounded())) percent" + (projectedFill == nil ? "" : ", projected to run out early"))
         .accessibilityValue(marker.map { "Time marker at \(Int(($0 * 100).rounded())) percent" } ?? "")
+    }
+
+    private struct ProjectedSpan {
+        var start: CGFloat
+        var end: CGFloat
+        /// Drawn under the fill (it grows toward the stretch) rather than over it.
+        var behindFill: Bool
+    }
+
+    /// The shaded stretch's horizontal extent, in points.
+    private func projectedSpan(width: CGFloat, filled: CGFloat) -> ProjectedSpan? {
+        guard let projectedFill else { return nil }
+        let end = width * CGFloat(min(max(projectedFill, 0), 100) / 100)
+        guard abs(end - filled) > 0.5 else { return nil }
+        // Start half a bar under the fill's round cap so no sliver of track shows between them.
+        if end > filled { return ProjectedSpan(start: max(filled - height / 2, 0), end: end, behindFill: true) }
+        return ProjectedSpan(start: end, end: filled, behindFill: false)
+    }
+
+    private func projectedStretch(_ span: ProjectedSpan, width: CGFloat) -> some View {
+        HStack(spacing: 0) {
+            Color.clear.frame(width: span.start)
+            Color.orange.opacity(0.25).frame(width: span.end - span.start)
+            Spacer(minLength: 0)
+        }
+        .frame(width: width, height: height)
+        .clipShape(Capsule())
     }
 
     private var lineWidth: CGFloat { style == .prominent ? 3 : 2 }
@@ -103,6 +144,8 @@ extension PaceBar {
         PaceBar(window: window, mode: .used, tint: UsageFormat.providerTint("claude"))
         PaceBar(window: window, mode: .remaining, tint: UsageFormat.providerTint("claude"))
         PaceBar(window: window, mode: .used, tint: UsageFormat.providerTint("openai"), height: 5, style: .thin)
+        PaceBar(fill: 75, marker: 0.62, tint: UsageFormat.providerTint("claude"), projectedFill: 100)
+        PaceBar(fill: 25, marker: 0.38, tint: UsageFormat.providerTint("claude"), projectedFill: 0)
     }
     .padding()
     .background(Color.black)
