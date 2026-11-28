@@ -4,7 +4,7 @@ Meterkat shows how much of your AI coding plans you have left, and when each lim
 
 A small companion runs on your Mac or Linux machine. It reads the sign-ins your CLIs already have, polls each provider's usage endpoint and serves one normalized snapshot. The apps read that snapshot over your LAN or Tailscale. Provider tokens never leave the computer.
 
-Meterkat is in beta. There are no published builds yet, so build it from source.
+Meterkat is in beta. Download signed Android phone and Wear OS APKs and the notarized Mac app from [GitHub Releases](https://github.com/SahilUX/meterkat/releases). iPhone and Apple Watch builds currently require Xcode.
 
 ## What's in the repo
 

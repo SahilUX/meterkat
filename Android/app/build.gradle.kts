@@ -6,6 +6,12 @@ plugins {
     id("com.google.devtools.ksp")
 }
 
+val releaseStore = System.getenv("METERKAT_KEYSTORE_PATH")
+val signingValues = listOf("METERKAT_STORE_PASSWORD", "METERKAT_KEY_ALIAS", "METERKAT_KEY_PASSWORD")
+require(releaseStore == null || signingValues.all { !System.getenv(it).isNullOrBlank() }) {
+    "Release signing requires all METERKAT signing environment variables"
+}
+
 android {
     namespace = "com.sahil.meterkat"
     compileSdk = 36
@@ -13,9 +19,19 @@ android {
         applicationId = "com.sahil.meterkat"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "2.3.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+    signingConfigs {
+        if (releaseStore != null) {
+            create("release") {
+                storeFile = file(releaseStore)
+                storePassword = System.getenv("METERKAT_STORE_PASSWORD")
+                keyAlias = System.getenv("METERKAT_KEY_ALIAS")
+                keyPassword = System.getenv("METERKAT_KEY_PASSWORD")
+            }
+        }
     }
     buildFeatures {
         compose = true
@@ -28,6 +44,7 @@ android {
 
     buildTypes {
         release {
+            if (releaseStore != null) signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),

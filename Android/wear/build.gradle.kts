@@ -5,6 +5,12 @@ plugins {
     id("org.jetbrains.kotlin.plugin.serialization")
 }
 
+val releaseStore = System.getenv("METERKAT_KEYSTORE_PATH")
+val signingValues = listOf("METERKAT_STORE_PASSWORD", "METERKAT_KEY_ALIAS", "METERKAT_KEY_PASSWORD")
+require(releaseStore == null || signingValues.all { !System.getenv(it).isNullOrBlank() }) {
+    "Release signing requires all METERKAT signing environment variables"
+}
+
 android {
     namespace = "com.sahil.meterkat.wear"
     compileSdk = 36
@@ -12,8 +18,23 @@ android {
         applicationId = "com.sahil.meterkat.wear"
         minSdk = 30
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "2.3.0"
+    }
+    signingConfigs {
+        if (releaseStore != null) {
+            create("release") {
+                storeFile = file(releaseStore)
+                storePassword = System.getenv("METERKAT_STORE_PASSWORD")
+                keyAlias = System.getenv("METERKAT_KEY_ALIAS")
+                keyPassword = System.getenv("METERKAT_KEY_PASSWORD")
+            }
+        }
+    }
+    buildTypes {
+        release {
+            if (releaseStore != null) signingConfig = signingConfigs.getByName("release")
+        }
     }
     buildFeatures { compose = true }
     compileOptions {
