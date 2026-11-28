@@ -64,7 +64,7 @@ class NativeWidgetConfigurationTest {
             ActivityScenario.launch<WidgetConfigurationActivity>(intent).use { scenario ->
                 compose.onNodeWithText("Configure Meterkat widget").assertIsDisplayed()
                 compose
-                    .onNodeWithText("Pair a computer in Meterkat before adding this widget.")
+                    .onNodeWithText("Pair a client in Meterkat before adding this widget.")
                     .assertIsDisplayed()
                 compose.onNodeWithText("Save widget").assertIsNotEnabled()
                 compose.onNodeWithText("App setting").assertIsDisplayed()

@@ -32,10 +32,10 @@ internal fun widgetChart(window: UsageWindow, points: List<List<Double>>, remain
     val end = reset?.epochSecond?.toDouble()?.takeIf { it > begin } ?: now.epochSecond.toDouble().coerceAtLeast(begin + 1)
     fun x(epoch: Double) = left + w * ((epoch - begin) / (end - begin)).coerceIn(0.0, 1.0).toFloat()
     fun y(value: Double) = top + h * (1.0 - (if (remaining) 100.0 - value else value).coerceIn(0.0, 100.0) / 100.0).toFloat()
-    paint.color = if (dark) 0xFF343E37.toInt() else 0xFFE0E5DE.toInt()
+    paint.color = if (dark) 0xFF2C2C2E.toInt() else 0xFFEEEEF2.toInt()
     listOf(0.0, 25.0, 50.0, 75.0, 100.0).forEach { canvas.drawLine(left, y(it), left+w, y(it), paint) }
     if (start != null && reset != null && reset > now) {
-        paint.color = if (dark) 0xFFAEB9AF.toInt() else 0xFF6C776E.toInt()
+        paint.color = 0xFF8E8E93.toInt()
         paint.pathEffect = DashPathEffect(floatArrayOf(8f, 5f), 0f)
         canvas.drawLine(left, y(0.0), left+w, y(100.0), paint)
         paint.pathEffect = null
@@ -57,19 +57,20 @@ internal fun widgetChart(window: UsageWindow, points: List<List<Double>>, remain
     return bitmap
 }
 
+/** The pace bar of the app: a tint track and fill, with an outlined marker for time through the window. */
 internal fun widgetBar(fraction: Double, marker: Double?, color: Int, dark: Boolean): Bitmap {
     val bitmap = Bitmap.createBitmap(600, 20, Bitmap.Config.ARGB_8888)
     val canvas = Canvas(bitmap); val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-    paint.color = if (dark) 0xFF364239.toInt() else 0xFFDFE5DC.toInt()
-    canvas.drawRoundRect(0f, 3f, 600f, 17f, 7f, 7f, paint)
+    paint.color = (color and 0x00FFFFFF) or (0x38 shl 24)
+    canvas.drawRoundRect(0f, 4f, 600f, 16f, 6f, 6f, paint)
     paint.color = color
-    if (fraction > 0) canvas.drawRoundRect(0f, 3f, (fraction * 600).toFloat(), 17f, 7f, 7f, paint)
+    if (fraction > 0) canvas.drawRoundRect(0f, 4f, (maxOf(fraction, 0.02) * 600).toFloat(), 16f, 6f, 6f, paint)
     marker?.let {
-        val x = (it * 596).toFloat().coerceIn(2f, 598f)
-        paint.color = if (dark) 0xFF18201B.toInt() else 0xFFFDFEF9.toInt(); paint.strokeWidth = 6f
-        canvas.drawLine(x, 0f, x, 20f, paint)
-        paint.color = if (dark) 0xFFE1EBE2.toInt() else 0xFF303832.toInt(); paint.strokeWidth = 2f
-        canvas.drawLine(x, 0f, x, 20f, paint)
+        val x = (it * 596).toFloat().coerceIn(3f, 597f)
+        paint.color = if (dark) 0xFF1C1C1E.toInt() else 0xFFFFFFFF.toInt(); paint.strokeWidth = 8f
+        canvas.drawLine(x, 1f, x, 19f, paint)
+        paint.color = if (dark) 0xFFF2F2F7.toInt() else 0xFF1C1C1E.toInt(); paint.strokeWidth = 4f
+        canvas.drawLine(x, 1f, x, 19f, paint)
     }
     return bitmap
 }

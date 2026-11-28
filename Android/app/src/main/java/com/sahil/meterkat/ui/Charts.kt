@@ -14,10 +14,16 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
+import com.sahil.meterkat.domain.Projection
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.material3.Text
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -25,33 +31,56 @@ import com.sahil.meterkat.domain.UsageProjection
 import com.sahil.meterkat.model.*
 import java.time.Instant
 
+/**
+ * The pace bar: an 8dp bar (a tint track, a tint fill) with a marker for how far through the window
+ * time is, and a shaded stretch where the projection says the limit will be used up before reset.
+ */
 @Composable
-fun PaceBar(window: UsageWindow, remaining: Boolean, tint: Color, now: Instant) {
+fun PaceBar(
+    window: UsageWindow,
+    remaining: Boolean,
+    tint: Color,
+    now: Instant,
+    projection: Projection? = null,
+) {
     val used = window.effectivePercent(now)
     val fill = if (remaining) 100 - used else used
     val marker = window.elapsed(now)?.let { if (remaining) 1 - it else it }
-    val track = MaterialTheme.colorScheme.surfaceContainerHighest
+    val track = tint.copy(alpha = .22f)
     val ink = MaterialTheme.colorScheme.onSurface
+    val edge = MaterialTheme.colorScheme.surface
+    val shade = MaterialTheme.meterkat.projected
+    // The stretch the projection says will be used before the reset, as fractions of the bar.
+    val shaded: ClosedFloatingPointRange<Float>? =
+        projection?.takeIf { it.runsOutAt != null }?.let {
+            val projected = it.projectedAtReset.coerceIn(0.0, 100.0)
+            val range = if (remaining) (100 - projected)..fill else used..maxOf(projected, used)
+            (range.start / 100).toFloat()..(range.endInclusive / 100).toFloat()
+        }
     Canvas(
-        Modifier.fillMaxWidth().height(14.dp).semantics {
+        Modifier.fillMaxWidth().height(18.dp).semantics {
             contentDescription =
-                "${percent(fill)} ${if(remaining)"remaining" else "used"}${marker?.let {", time marker at ${percent(it*100)}"}.orEmpty()}"
+                "${percent(fill)} ${if(remaining)"remaining" else "used"}${marker?.let {", even pace ${percent(it*100)}"}.orEmpty()}${if (shaded != null) ", projected to run out before reset" else ""}"
         }
     ) {
-        drawRoundRect(track, cornerRadius = CornerRadius(size.height / 2))
-        if (fill > 0)
+        val barHeight = 8.dp.toPx()
+        val top = (size.height - barHeight) / 2
+        val corner = CornerRadius(barHeight / 2)
+        fun bar(color: Color, from: Float, to: Float) =
             drawRoundRect(
-                tint,
-                size =
-                    androidx.compose.ui.geometry.Size(
-                        size.width * (fill / 100).toFloat(),
-                        size.height,
-                    ),
-                cornerRadius = CornerRadius(size.height / 2),
+                color,
+                topLeft = Offset(size.width * from, top),
+                size = Size(size.width * (to - from).coerceAtLeast(0f), barHeight),
+                cornerRadius = corner,
             )
+        bar(track, 0f, 1f)
+        shaded?.let { bar(shade, it.start, it.endInclusive) }
+        if (fill > 0) bar(tint, 0f, (maxOf(fill, 2.0) / 100).toFloat())
         marker?.let {
-            val x = size.width * it.toFloat()
-            drawLine(ink, Offset(x, 0f), Offset(x, size.height), 2.dp.toPx())
+            val x = (size.width * it.toFloat()).coerceIn(1.5.dp.toPx(), size.width - 1.5.dp.toPx())
+            val round = CornerRadius(2.5.dp.toPx())
+            drawRoundRect(edge, Offset(x - 2.5.dp.toPx(), 0f), Size(5.dp.toPx(), size.height), round)
+            drawRoundRect(ink, Offset(x - 1.5.dp.toPx(), 1.dp.toPx()), Size(3.dp.toPx(), size.height - 2.dp.toPx()), CornerRadius(1.5.dp.toPx()))
         }
     }
 }
@@ -68,8 +97,10 @@ fun UsageChart(
     predictionData: com.sahil.meterkat.model.UsagePredictionData? = null,
     onInspectionChange: (String?) -> Unit = {},
 ) {
-    val grid = MaterialTheme.colorScheme.outlineVariant
-    val baseline = MaterialTheme.colorScheme.onSurfaceVariant
+    val grid = MaterialTheme.meterkat.grid
+    val baseline = MaterialTheme.meterkat.evenPace
+    val blocked = MaterialTheme.meterkat.warn
+    val dot = MaterialTheme.colorScheme.surface
     val reset = instant(window.resetsAt)
     val start = reset?.let { r ->
         window.windowSeconds?.takeIf { it > 0 }?.let { r.minusSeconds(it) }
@@ -149,58 +180,104 @@ fun UsageChart(
         }
     ) {
         Canvas(Modifier.fillMaxSize()) {
-        val left = 8.dp.toPx()
-        val top = 8.dp.toPx()
-        val width = (size.width - left * 2).coerceAtLeast(1f)
-        val height = (size.height - top * 2).coerceAtLeast(1f)
-        fun y(percent: Double) =
-            top +
-                height *
-                    (1 - (if (remaining) 100 - percent else percent).coerceIn(0.0, 100.0) / 100)
-                        .toFloat()
-        fun x(epoch: Double) =
-            left + width * ((epoch - begin) / (end - begin)).coerceIn(0.0, 1.0).toFloat()
-        listOf(0.0, 25.0, 50.0, 75.0, 100.0).forEach {
-            val gy = y(it)
-            drawLine(grid, Offset(left, gy), Offset(left + width, gy), 1.dp.toPx())
-        }
-        if (start != null && reset?.isAfter(now) == true)
-            drawLine(
-                baseline,
-                Offset(left, y(0.0)),
-                Offset(left + width, y(100.0)),
-                1.5.dp.toPx(),
-                pathEffect = PathEffect.dashPathEffect(floatArrayOf(8.dp.toPx(), 5.dp.toPx())),
-            )
-        if (cyclePoints.size >= 2) {
-            val path = Path()
-            cyclePoints.forEachIndexed { index, p ->
-                if (index == 0) path.moveTo(x(p[0]), y(p[1])) else path.lineTo(x(p[0]), y(p[1]))
+            val left = 8.dp.toPx()
+            val top = 8.dp.toPx()
+            val width = (size.width - left * 2).coerceAtLeast(1f)
+            val height = (size.height - top * 2).coerceAtLeast(1f)
+            fun y(percent: Double) =
+                top +
+                    height *
+                        (1 - (if (remaining) 100 - percent else percent).coerceIn(0.0, 100.0) / 100)
+                            .toFloat()
+            fun x(epoch: Double) =
+                left + width * ((epoch - begin) / (end - begin)).coerceIn(0.0, 1.0).toFloat()
+            listOf(0.0, 50.0, 100.0).forEach {
+                val gy = y(it)
+                drawLine(grid, Offset(left, gy), Offset(left + width, gy), 1.dp.toPx())
             }
-            drawPath(path, tint, style = Stroke(width = 2.5.dp.toPx()))
-        } else if (cyclePoints.isEmpty()) {
-            drawLine(
-                tint.copy(alpha = .8f),
-                Offset(x(begin), y(0.0)),
-                Offset(x(now.epochSecond.toDouble()), y(window.effectivePercent(now))),
-                2.5.dp.toPx(),
+            if (start != null && reset?.isAfter(now) == true)
+                drawLine(
+                    baseline,
+                    Offset(left, y(0.0)),
+                    Offset(left + width, y(100.0)),
+                    1.dp.toPx(),
+                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(), 4.dp.toPx())),
+                )
+            val actual =
+                when {
+                    cyclePoints.size >= 2 -> cyclePoints.map { x(it[0]) to y(it[1]) }
+                    cyclePoints.isEmpty() ->
+                        listOf(
+                            x(begin) to y(0.0),
+                            x(now.epochSecond.toDouble()) to y(window.effectivePercent(now)),
+                        )
+                    else -> emptyList()
+                }
+            if (actual.size >= 2) {
+                val line = Path().apply { actual.forEachIndexed { i, (px, py) -> if (i == 0) moveTo(px, py) else lineTo(px, py) } }
+                val area = Path().apply {
+                    addPath(line)
+                    lineTo(actual.last().first, top + height)
+                    lineTo(actual.first().first, top + height)
+                    close()
+                }
+                drawPath(
+                    area,
+                    Brush.verticalGradient(
+                        listOf(tint.copy(alpha = .28f), tint.copy(alpha = .02f)),
+                        startY = top,
+                        endY = top + height,
+                    ),
+                )
+                drawPath(line, tint, style = Stroke(width = 2.5.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
+            }
+            val nowX = x(now.epochSecond.toDouble())
+            val nowY = y(window.effectivePercent(now))
+            projection?.let {
+                val outX = it.runsOutAt?.epochSecond?.toDouble()?.let(::x)
+                drawLine(
+                    tint.copy(alpha = .75f),
+                    Offset(nowX, nowY),
+                    Offset(outX ?: x(end), y(if (outX != null) 100.0 else it.projectedAtReset)),
+                    1.8.dp.toPx(),
+                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(5.dp.toPx(), 4.dp.toPx())),
+                )
+                if (outX != null) {
+                    drawLine(blocked, Offset(outX, y(100.0)), Offset(left + width, y(100.0)), 3.dp.toPx(), cap = StrokeCap.Round)
+                    drawCircle(blocked, 4.5.dp.toPx(), Offset(outX, y(100.0)))
+                }
+            }
+            if (cyclePoints.isNotEmpty() || actual.isNotEmpty()) {
+                drawCircle(dot, 6.5.dp.toPx(), Offset(nowX, nowY))
+                drawCircle(tint, 4.5.dp.toPx(), Offset(nowX, nowY))
+            }
+            inspectedAt?.let { time ->
+                val value = valueAt(time)
+                drawLine(baseline.copy(alpha = .75f), Offset(x(time), top), Offset(x(time), top + height), 1.dp.toPx())
+                drawCircle(tint, 4.dp.toPx(), Offset(x(time), y(value)))
+            }
+        }
+    }
+}
+
+/** Weekday names (or hours, for a short window) under a chart, one per day of the window. */
+@Composable
+fun ChartAxis(window: UsageWindow, modifier: Modifier = Modifier) {
+    val reset = instant(window.resetsAt) ?: return
+    val seconds = window.windowSeconds?.takeIf { it > 0 } ?: return
+    val start = reset.minusSeconds(seconds)
+    val zone = java.time.ZoneId.systemDefault()
+    val long = seconds >= 2 * 86_400
+    val count = if (long) ((seconds + 86_399) / 86_400).toInt().coerceAtMost(8) else 4
+    val step = if (long) 86_400L else seconds / count
+    val format = java.time.format.DateTimeFormatter.ofPattern(if (long) "EEE" else "h a")
+    Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        repeat(count) {
+            Text(
+                format.withZone(zone).format(start.plusSeconds(step * it + if (long) 43_200 else 0)),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-        }
-        cyclePoints.lastOrNull()?.let { drawCircle(tint, 4.dp.toPx(), Offset(x(it[0]), y(it[1]))) }
-        projection?.let {
-            drawLine(
-                tint.copy(alpha = .65f),
-                Offset(x(now.epochSecond.toDouble()), y(window.effectivePercent(now))),
-                Offset(x(it.runsOutAt?.epochSecond?.toDouble() ?: end), y(it.projectedAtReset)),
-                2.dp.toPx(),
-                pathEffect = PathEffect.dashPathEffect(floatArrayOf(2.dp.toPx(), 5.dp.toPx())),
-            )
-        }
-        inspectedAt?.let { time ->
-            val value = valueAt(time)
-            drawLine(baseline.copy(alpha = .75f), Offset(x(time), top), Offset(x(time), top + height), 1.dp.toPx())
-            drawCircle(tint, 4.dp.toPx(), Offset(x(time), y(value)))
-        }
         }
     }
 }

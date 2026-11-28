@@ -65,6 +65,32 @@ data class UsageWindow(
     }
 }
 
+/**
+ * "Current session", "Weekly limit", "Monthly limit", "Daily limit", "<model> weekly" and so on:
+ * the same titles as the iPhone and Mac apps.
+ */
+val UsageWindow.title: String
+    get() {
+        fun generic(period: String) =
+            label.lowercase(Locale.ROOT).split(' ').filter { it.isNotEmpty() }.all {
+                it.startsWith(period) || it == "limit"
+            }
+        fun titled(period: String) =
+            if (label.contains(period, ignoreCase = true)) label else "$label $period"
+        return when {
+            id == "five_hour" -> "Current session"
+            id == "weekly" -> "Weekly limit"
+            id == "monthly" -> if (generic("month")) "Monthly limit" else label
+            id == "daily" -> if (generic("da")) "Daily limit" else label
+            id == "key_limit" -> "Key credit limit"
+            id.startsWith("weekly_") -> titled("weekly")
+            id.startsWith("five_hour_") -> "$label session"
+            id.startsWith("monthly_") -> titled("monthly")
+            id.startsWith("daily_") -> titled("daily")
+            else -> label
+        }
+    }
+
 @Serializable data class ProviderDetail(val label: String, val value: String)
 
 @Serializable

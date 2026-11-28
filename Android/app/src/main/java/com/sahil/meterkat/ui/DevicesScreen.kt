@@ -21,12 +21,12 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 /**
- * An owner-paired computer's devices. [confirm] asks for fingerprint, face or screen lock and calls
+ * An owner-paired client's devices. [confirm] asks for fingerprint, face or screen lock and calls
  * back only when the user passed; nothing is revoked without it.
  */
 @Composable
 fun DevicesScreen(
-    computer: String,
+    client: String,
     load: suspend () -> DeviceList,
     revoke: suspend (DeviceEntry) -> Unit,
     confirm: (title: String, subtitle: String, (BiometricGate.Outcome) -> Unit) -> Unit,
@@ -91,9 +91,9 @@ fun DevicesScreen(
         item {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text(computer, style = MaterialTheme.typography.titleLarge)
+                    Text(client, style = MaterialTheme.typography.titleLarge)
                     Text(
-                        "Devices that can read this computer's usage. Tap a device for exact times.",
+                        "Devices that can read this client's usage. Tap a device for exact times.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -145,7 +145,7 @@ fun DevicesScreen(
                 }
             }
             if (current.devices.isEmpty() && current.sharedToken == null)
-                item { Notice("No devices have paired with this computer yet.") }
+                item { Notice("No devices have paired with this client yet.") }
         }
     }
 
@@ -157,9 +157,9 @@ fun DevicesScreen(
             text = {
                 Text(
                     if (own)
-                        "This is the phone you're holding. Revoking it removes your owner access and usage on this phone, and you'll have to pair this computer again."
+                        "This is the phone you're holding. Revoking it removes your owner access and usage on this phone, and you'll have to pair this client again."
                     else
-                        "${device.name} stops getting usage from $computer straight away. Nothing else has to pair again. You'll be asked to confirm with your fingerprint, face or screen lock."
+                        "${device.name} stops getting usage from $client straight away. Nothing else has to pair again. You'll be asked to confirm with your fingerprint, face or screen lock."
                 )
             },
             confirmButton = {
@@ -168,7 +168,7 @@ fun DevicesScreen(
                         asking = null
                         confirm(
                             if (own) "Revoke this phone" else "Revoke ${device.name}",
-                            computer,
+                            client,
                         ) { outcome ->
                             when (outcome) {
                                 BiometricGate.Outcome.Approved -> doRevoke(device)

@@ -25,12 +25,12 @@ services; pairing-link paste works when scanning is unavailable.
 
 ## Behavior
 
-- Usage and Settings navigation, multiple paired computers and provider accounts.
+- Usage and Settings navigation, multiple paired clients and provider accounts.
 - Used/remaining bars with pace markers, recorded history graphs and projections.
 - Product breakdowns, provider details, estimated API costs, and token summaries.
 - Provider visibility and alert preferences, system light/dark appearance, and
   optional dynamic colors for app controls.
-- Cached usage appears immediately. Failed computers retain visibly stale data.
+- Cached usage appears immediately. Failed clients retain visibly stale data.
 - Foreground refresh runs every 60 seconds. Background refresh uses WorkManager
   every 15 minutes, subject to Android battery and network restrictions.
 - Limit warnings are deduplicated per account/window/cycle. Reset reminders use

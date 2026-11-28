@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent" android:layout_height="match_parent"
-    android:background="#F1F4F0" android:orientation="vertical" android:padding="12dp">
+    android:background="#F2F2F7" android:orientation="vertical" android:padding="12dp">
     <TextView android:layout_width="match_parent" android:layout_height="24dp"
-        android:text="Usage Overview" android:textColor="#18201B" android:textSize="16sp"
+        android:text="Usage Overview" android:textColor="#1C1C1E" android:textSize="16sp"
         android:textStyle="bold" />
     <LinearLayout android:layout_width="match_parent" android:layout_height="0dp"
         android:layout_weight="1" android:orientation="horizontal">

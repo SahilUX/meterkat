@@ -1,5 +1,6 @@
 package com.sahil.meterkat.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -11,7 +12,13 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
+import com.sahil.meterkat.BuildConfig
 import androidx.compose.ui.unit.dp
 import com.sahil.meterkat.domain.Reachability
 import com.sahil.meterkat.domain.reachability
@@ -26,165 +33,189 @@ fun SettingsScreen(
     navigate: (String) -> Unit,
     onNotifications: () -> Unit,
     onExport: () -> Unit,
+    update: (UsagePreferences) -> Unit,
 ) {
     LazyColumn(
-        contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         item {
-            SettingsRow(
-                "Computers",
-                "${state.clients.size} paired · ${state.clients.firstOrNull()?.name?:"None"}",
-                { navigate("clients") },
-                Icons.Default.Computer,
-            )
+            GroupCard {
+                SettingsRow(
+                    "Clients",
+                    if (state.clients.isEmpty()) "No clients paired"
+                    else "${state.clients.size} paired · ${state.clients.first().name} is default",
+                    { navigate("clients") },
+                    Icons.Default.Computer,
+                )
+                RowDivider()
+                SettingsRow(
+                    "Display",
+                    "${if(state.preferences.graphs)"Graphs" else "Bars"} · ${if(state.preferences.remaining)"Remaining" else "Used"}",
+                    { navigate("display") },
+                    Icons.Default.BarChart,
+                )
+                RowDivider()
+                SettingsRow(
+                    "Notifications",
+                    "Allow warnings and reset reminders in Android",
+                    onNotifications,
+                    Icons.Default.Notifications,
+                )
+            }
+        }
+        item { SectionHeader("Providers") }
+        item {
+            GroupCard {
+                providerNames.entries.forEachIndexed { index, (id, name) ->
+                    if (index > 0) RowDivider()
+                    ProviderRow(id, name, state, { navigate("provider:$id") }, update)
+                }
+            }
+        }
+        item { Footnote("Turn providers on or off and choose their alerts.") }
+        item { SectionHeader("About") }
+        item {
+            GroupCard {
+                TextRow("Setup guide", onClick = { navigate("guide") })
+                RowDivider()
+                TextRow("Share Meterkat skill", onClick = onExport)
+                RowDivider()
+                TextRow("Version", value = "${BuildConfig.VERSION_NAME} beta")
+                state.clients.firstOrNull()?.snapshot?.companionVersion?.let {
+                    RowDivider()
+                    TextRow("Companion", value = it)
+                }
+            }
         }
         item {
-            SettingsRow(
-                "Display",
-                "${if(state.preferences.graphs)"Graphs" else "Bars"} · ${if(state.preferences.remaining)"Remaining" else "Used"}",
-                { navigate("display") },
-                Icons.Default.BarChart,
+            Footnote(
+                "Meterkat reads usage summaries from your clients. Provider credentials stay there. This phone stores a pairing token for each client."
             )
-        }
-        item {
-            SettingsRow(
-                "Notifications",
-                "Allow warnings and reset reminders in Android",
-                onNotifications,
-                Icons.Default.Notifications,
-            )
-        }
-        item {
-            val enabled =
-                providerNames.keys.count { state.preferences.providers[it]?.enabled != false }
-            SettingsRow(
-                "Providers",
-                "$enabled of ${providerNames.size} shown",
-                { navigate("providers") },
-                Icons.Default.Apps,
-            )
-        }
-        item {
-            Text(
-                "About",
-                style = MaterialTheme.typography.titleSmall,
-                modifier = Modifier.padding(top = 12.dp),
-            )
-        }
-        item {
-            SettingsRow(
-                "Setup guide",
-                "Connect your computers",
-                { navigate("guide") },
-                Icons.Default.MenuBook,
-            )
-        }
-        item {
-            SettingsRow(
-                "Share Meterkat skill",
-                "Add it to your AI tool on the companion computer",
-                onExport,
-                Icons.Default.Share,
-            )
-        }
-        item {
-            Notice(
-                "Meterkat reads usage summaries from your computers. Provider credentials stay there. This phone stores a pairing token for each computer."
-            )
-        }
-        item {
-            Text(
-                "Meterkat 0.1.0 · Private alpha",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        state.clients.firstOrNull()?.snapshot?.companionVersion?.let {
-            item { Text("Companion $it", style = MaterialTheme.typography.bodySmall) }
         }
     }
 }
 
 @Composable
-fun ProvidersScreen(state: MeterkatState, openProvider: (String) -> Unit) {
-    LazyColumn(
-        contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+private fun GroupCard(content: @Composable ColumnScope.() -> Unit) {
+    Card(
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
     ) {
-        providerNames.forEach { (id, name) ->
-            item(key = id) {
-                val provider = state.providers.firstOrNull { it.id == id }
-                val enabled = state.preferences.providers[id]?.enabled != false
-                val subtitle =
-                    when {
-                        !enabled -> "Hidden"
-                        provider == null -> "No usage reported"
-                        provider.status != "ok" -> provider.status.replace('_', ' ')
-                        provider.plan != null -> provider.plan
-                        else -> "Connected"
-                    }
-                Card(
-                    onClick = { openProvider(id) },
-                    shape = RoundedCornerShape(16.dp),
-                    colors =
-                        CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                ) {
-                    Row(
-                        Modifier.fillMaxWidth().padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        ProviderMark(id, 40)
-                        Column(Modifier.weight(1f)) {
-                            Text(name, style = MaterialTheme.typography.titleMedium)
-                            Text(
-                                subtitle,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        Icon(Icons.Default.ChevronRight, null)
-                    }
-                }
-            }
+        Column(content = content)
+    }
+}
+
+@Composable
+private fun RowDivider() = HorizontalDivider(color = MaterialTheme.meterkat.divider)
+
+@Composable
+private fun SectionHeader(text: String) {
+    Text(
+        text.uppercase(),
+        Modifier.padding(start = 4.dp, end = 4.dp, top = 14.dp, bottom = 2.dp),
+        style = MaterialTheme.typography.labelMedium,
+        fontWeight = FontWeight.SemiBold,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        letterSpacing = 0.4.sp,
+    )
+}
+
+@Composable
+private fun Footnote(text: String) {
+    Text(
+        text,
+        Modifier.padding(start = 4.dp, end = 4.dp, top = 2.dp),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+}
+
+@Composable
+private fun TextRow(title: String, value: String? = null, onClick: (() -> Unit)? = null) {
+    Row(
+        Modifier.fillMaxWidth()
+            .heightIn(min = 52.dp)
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+            .padding(horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(title, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
+        value?.let {
+            Text(it, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
+    }
+}
+
+/** A provider with its status line and a switch that shows or hides it. */
+@Composable
+private fun ProviderRow(
+    id: String,
+    name: String,
+    state: MeterkatState,
+    open: () -> Unit,
+    update: (UsagePreferences) -> Unit,
+) {
+    val prefs = state.preferences.providers[id] ?: ProviderPreferences()
+    val provider = state.providers.firstOrNull { it.id == id }
+    val problem = prefs.enabled && provider != null && provider.status != "ok" && provider.status != "no_plan"
+    val status =
+        when {
+            !prefs.enabled -> "Off"
+            provider == null -> "No usage reported"
+            provider.status == "not_signed_in" -> "Not signed in on the companion machine"
+            provider.status != "ok" && provider.status != "no_plan" ->
+                provider.error ?: provider.status.replace('_', ' ').replaceFirstChar(Char::uppercase)
+            else ->
+                listOfNotNull(
+                        provider.plan?.replaceFirstChar(Char::uppercase),
+                        if (prefs.limitAlerts) "alert at ${prefs.limitThreshold.toInt()}%" else null,
+                    )
+                    .joinToString(" · ")
+                    .ifEmpty { "Connected" }
+        }
+    Row(
+        Modifier.fillMaxWidth().heightIn(min = 60.dp).clickable(onClick = open).padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        ProviderMark(id, 36)
+        Column(Modifier.weight(1f)) {
+            Text(name, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
+            Text(
+                status,
+                style = MaterialTheme.typography.bodySmall,
+                color = if (problem) MaterialTheme.meterkat.warn else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        MeterkatSwitch(
+            prefs.enabled,
+            { enabled ->
+                update(state.preferences.copy(providers = state.preferences.providers + (id to prefs.copy(enabled = enabled))))
+            },
+            Modifier.semantics { contentDescription = "Show $name" },
+        )
     }
 }
 
 @Composable
 private fun SettingsRow(title: String, subtitle: String, click: () -> Unit, icon: ImageVector) {
-    Card(
-        onClick = click,
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    Row(
+        Modifier.fillMaxWidth().heightIn(min = 64.dp).clickable(onClick = click).padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        Row(
-            Modifier.fillMaxWidth().padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        Box(
+            Modifier.size(36.dp).clip(RoundedCornerShape(10.dp)).background(MaterialTheme.colorScheme.primaryContainer),
+            contentAlignment = Alignment.Center,
         ) {
-            Surface(
-                shape = RoundedCornerShape(12.dp),
-                color = MaterialTheme.colorScheme.primaryContainer,
-            ) {
-                Icon(
-                    icon,
-                    null,
-                    Modifier.padding(10.dp).size(22.dp),
-                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                )
-            }
-            Column(Modifier.weight(1f)) {
-                Text(title, style = MaterialTheme.typography.titleMedium)
-                Text(
-                    subtitle,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            Icon(Icons.Default.ChevronRight, null)
+            Icon(icon, null, Modifier.size(20.dp), tint = MaterialTheme.meterkat.accentText)
         }
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
+            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Icon(Icons.Default.ChevronRight, null, Modifier.size(20.dp), tint = MaterialTheme.meterkat.faint)
     }
 }
 
@@ -209,13 +240,13 @@ fun ClientsScreen(
         item {
             Button(onClick = add, modifier = Modifier.fillMaxWidth()) {
                 Icon(Icons.Default.Add, null)
-                Text("Pair a computer")
+                Text("Add client")
             }
         }
         if (state.clients.isEmpty())
             item {
                 Notice(
-                    "No computers paired. Run meterkat pair on your computer, then scan or paste its link."
+                    "No clients paired. Run meterkat pair on your computer, then scan or paste its link."
                 )
             }
         state.clients.forEachIndexed { index, c ->
@@ -232,7 +263,7 @@ fun ClientsScreen(
                         Text(c.name, style = MaterialTheme.typography.titleLarge)
                         if (index == 0)
                             Text(
-                                "Default computer",
+                                "Default client",
                                 style = MaterialTheme.typography.labelMedium,
                                 color = MaterialTheme.colorScheme.primary,
                             )
@@ -313,7 +344,7 @@ fun ClientsScreen(
         var name by rememberSaveable(c.id) { mutableStateOf(c.name) }
         AlertDialog(
             onDismissRequest = { renaming = null },
-            title = { Text("Rename computer") },
+            title = { Text("Rename client") },
             text = {
                 OutlinedTextField(name, { name = it }, label = { Text("Name") }, singleLine = true)
             },
@@ -333,7 +364,7 @@ fun ClientsScreen(
     }
 }
 
-/** OS, companion version, access level and whether the computer answered last time. */
+/** OS, companion version, access level and whether the client answered last time. */
 @Composable
 private fun MachineSummary(c: ClientRecord) {
     val status = reachability(c)
@@ -562,6 +593,6 @@ private fun ToggleRow(title: String, subtitle: String, value: Boolean, change: (
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        Switch(value, change)
+        MeterkatSwitch(value, change)
     }
 }

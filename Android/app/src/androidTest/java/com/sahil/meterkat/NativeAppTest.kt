@@ -66,7 +66,7 @@ class NativeAppTest {
 
     @Test
     fun onboardingRejectsBlankAndLegacyLinksWithoutPairing() {
-        compose.onNodeWithText("Pair a computer").performClick()
+        compose.onNodeWithText("Paste pairing link").performClick()
         compose.onNodeWithText("Pair").performClick()
         compose
             .onNodeWithText("Use a meterkat://pair link from your companion.")
@@ -85,7 +85,7 @@ class NativeAppTest {
         Assert.assertTrue(repository.state.value.clients.isEmpty())
         Assert.assertEquals(0, server.requestCount)
         compose.onNodeWithText("Cancel").performClick()
-        compose.onNodeWithText("Provider credentials stay on your computer.").assertIsDisplayed()
+        compose.onNodeWithText("Pair your computer").assertIsDisplayed()
     }
 
     @Test
@@ -119,7 +119,6 @@ class NativeAppTest {
     fun hiddenProviderDisappearsFromDashboardAndSurvivesRecreation() {
         pairThroughUi()
         settings()
-        compose.onNodeWithText("Providers").performClick()
         compose.onNodeWithText("Claude").performClick()
         compose.onNodeWithText("Show Claude").performClick()
         compose.waitUntil(5000) {
@@ -139,18 +138,14 @@ class NativeAppTest {
     @Test
     fun providersHaveTheirOwnScreenAndSystemBackReturnsThroughSettings() {
         settings()
-        compose.onNodeWithText("Claude").assertDoesNotExist()
-        compose.onNodeWithText("Providers").performClick()
+        compose.onNodeWithText("Providers").assertIsDisplayed()
         compose.onNodeWithText("Claude").assertIsDisplayed()
         compose.onNodeWithText("OpenAI").assertIsDisplayed()
         compose.onNodeWithText("Claude").performClick()
         compose.onNodeWithText("Show Claude").assertIsDisplayed()
         compose.runOnUiThread { compose.activity.onBackPressedDispatcher.onBackPressed() }
-        compose.onNodeWithText("OpenAI").assertIsDisplayed()
+        compose.onNodeWithText("Clients").assertIsDisplayed()
         compose.onNodeWithText("Show Claude").assertDoesNotExist()
-        compose.runOnUiThread { compose.activity.onBackPressedDispatcher.onBackPressed() }
-        compose.onNodeWithText("Computers").assertIsDisplayed()
-        compose.onNodeWithText("Claude").assertDoesNotExist()
     }
 
     @Test
@@ -188,7 +183,7 @@ class NativeAppTest {
         val url = server.url("/").toString().trimEnd('/')
         val link =
             "meterkat://pair?local=${URLEncoder.encode(url, "UTF-8")}&token=test-token&name=Test%20computer"
-        compose.onNodeWithText("Pair a computer").performClick()
+        compose.onNodeWithText("Paste pairing link").performClick()
         compose.onNodeWithText("Meterkat pairing link").performTextReplacement(link)
         compose.onNodeWithText("Pair").performClick()
         compose.waitUntil(10000) {
