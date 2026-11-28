@@ -270,7 +270,7 @@ struct UsageChartView: View {
         if let projection {
             Text(projection.outlookText)
                 .font(.caption2.weight(.semibold))
-                .foregroundStyle(projection.runsOutAt == nil ? Color.secondary : tint)
+                .foregroundStyle(projection.runsOutBeforeReset ? tint : Color.secondary)
         } else {
             Text("Forecast unavailable")
                 .font(.caption2.weight(.semibold))

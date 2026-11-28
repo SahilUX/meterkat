@@ -204,8 +204,10 @@ final class UsageProjectionTests: XCTestCase {
         let data = UsagePredictionData(current: 40, ratePerHour: 60, projectedAtReset: 190,
                                        runsOutAt: runsOutAt, basis: "recent_trend", trendMinutes: 15)
         let p = try XCTUnwrap(UsageProjection.from(data, window: window(percent: 40, resetsAt: resetsAt), now: referenceNow))
+        // The window started 2.5 hours ago; its warnings begin after the first 30 minutes.
         XCTAssertEqual(p, UsageProjection(current: 40, now: referenceNow, resetsAt: resetsAt, ratePerHour: 60,
-                                          projectedAtReset: 190, runsOutAt: runsOutAt, basis: .recentTrend(minutes: 15)))
+                                          projectedAtReset: 190, runsOutAt: runsOutAt, basis: .recentTrend(minutes: 15),
+                                          alertsFrom: referenceNow.addingTimeInterval(-2 * 3_600)))
 
         let average = UsagePredictionData(current: 25, ratePerHour: 10, projectedAtReset: 50,
                                           runsOutAt: nil, basis: "window_average", trendMinutes: 15)
@@ -295,7 +297,9 @@ final class UsageProjectionTests: XCTestCase {
         XCTAssertEqual(exact.resetSummary(mode: .used), .init(text: "About 100% at reset", warns: false))
         XCTAssertEqual(exact.resetSummary(mode: .remaining), .init(text: "About 0% left at reset", warns: false))
 
-        XCTAssertNil(projection(rate: 5, current: 100, hoursLeft: 10).resetSummary(mode: .used))
+        // At the limit already: "Limit reached", never "Runs out early".
+        XCTAssertEqual(projection(rate: 5, current: 100, hoursLeft: 10).resetSummary(mode: .used),
+                       .init(text: "Limit reached", warns: true))
     }
 
     func testBarProjectedFillOnlyWhenRunningOut() {
@@ -401,5 +405,151 @@ final class UsageProjectionTests: XCTestCase {
         XCTAssertNil(p.bannerLines(title: "Current session", windowSeconds: 18_000))
         XCTAssertNil(p.detailOutlook(windowSeconds: 18_000))
         XCTAssertFalse(p.runsOutBeforeReset)
+    }
+    // MARK: - Review fixes
+
+    /// A window of `length` seconds that began `elapsed` seconds before `referenceNow`.
+    private func youngWindow(percent: Double, elapsed: TimeInterval, length: Int = 18_000) -> UsageWindow {
+        window(percent: percent, resetsAt: referenceNow.addingTimeInterval(Double(length) - elapsed), windowSeconds: length)
+    }
+
+    func testEarlyInTheWindowDoesNotWarn() throws {
+        // 5% after 10 minutes of a 5-hour window is 30 points an hour: out in about 3 hours.
+        let w = youngWindow(percent: 5, elapsed: 600)
+        let p = try XCTUnwrap(UsageProjection.make(window: w, samples: [], now: referenceNow))
+        XCTAssertNotNil(p.runsOutAt)
+        XCTAssertFalse(p.isEstablished)
+        XCTAssertFalse(p.runsOutBeforeReset)
+        XCTAssertNil(p.resetSummary(mode: .used))
+        XCTAssertNil(p.resetSummary(mode: .remaining))
+        XCTAssertNil(p.barProjectedFill(mode: .used))
+        XCTAssertNil(p.blockedRange)
+        XCTAssertNil(p.bannerLines(title: "Current session", windowSeconds: 18_000))
+        XCTAssertNil(p.detailOutlook(windowSeconds: 18_000))
+        XCTAssertNil(UsageProjection.earliestRunOut([(id: "early", projection: p)]))
+        XCTAssertEqual(p.outlookText, "Too early in the window to forecast")
+    }
+
+    func testWarningsStartOnceTenPercentOfTheWindowHasPassed() throws {
+        func established(elapsed: TimeInterval, length: Int) throws -> Bool {
+            let w = youngWindow(percent: 50, elapsed: elapsed, length: length)
+            return try XCTUnwrap(UsageProjection.make(window: w, samples: [], now: referenceNow)).isEstablished
+        }
+        // 5-hour window: 30 minutes.
+        XCTAssertFalse(try established(elapsed: 1_799, length: 18_000))
+        XCTAssertTrue(try established(elapsed: 1_800, length: 18_000))
+        // Daily window: 10% is 2.4 hours.
+        XCTAssertFalse(try established(elapsed: 8_000, length: 86_400))
+        XCTAssertTrue(try established(elapsed: 8_700, length: 86_400))
+        // Weekly and monthly windows: capped at 6 hours.
+        XCTAssertFalse(try established(elapsed: 21_599, length: 604_800))
+        XCTAssertTrue(try established(elapsed: 21_600, length: 604_800))
+        XCTAssertFalse(try established(elapsed: 21_599, length: 2_592_000))
+        XCTAssertTrue(try established(elapsed: 21_600, length: 2_592_000))
+    }
+
+    func testCompanionPredictionAlsoWaitsForTheWindowToAge() throws {
+        let w = youngWindow(percent: 5, elapsed: 600)
+        let data = UsagePredictionData(current: 5, ratePerHour: 30, projectedAtReset: 150,
+                                       runsOutAt: referenceNow.addingTimeInterval(3 * 3_600),
+                                       basis: "window_average", trendMinutes: 15)
+        let p = try XCTUnwrap(UsageProjection.from(data, window: w, now: referenceNow))
+        XCTAssertFalse(p.runsOutBeforeReset)
+        XCTAssertNil(p.bannerLines(title: "Current session", windowSeconds: 18_000))
+    }
+
+    func testCompanionPredictionUsesTheWindowsOwnPercentAndAFreshRunOut() throws {
+        // The prediction is stale: it saw 10%, the window reports 60% now, and its
+        // run-out time has passed. Rate 24 pts/hr over 2.5 h from 60% runs out in 100 min.
+        let w = window(percent: 60, resetsAt: resetsAt)
+        let data = UsagePredictionData(current: 10, ratePerHour: 24, projectedAtReset: 70,
+                                       runsOutAt: referenceNow.addingTimeInterval(-600),
+                                       basis: "window_average", trendMinutes: 15)
+        let p = try XCTUnwrap(UsageProjection.from(data, window: w, now: referenceNow))
+        XCTAssertEqual(p.current, 60)
+        XCTAssertEqual(p.projectedAtReset, 120, accuracy: 1e-9)
+        XCTAssertEqual(try XCTUnwrap(p.runsOutAt).timeIntervalSince(referenceNow), 6_000, accuracy: 1e-6)
+    }
+
+    func testCompanionRunOutInThePastIsIgnored() throws {
+        // Percent is under 100 but the prediction's run-out has passed and the rate is zero now.
+        let w = window(percent: 40, resetsAt: resetsAt)
+        let data = UsagePredictionData(current: 40, ratePerHour: 0, projectedAtReset: 40,
+                                       runsOutAt: referenceNow.addingTimeInterval(-60),
+                                       basis: "window_average", trendMinutes: 15)
+        let p = try XCTUnwrap(UsageProjection.from(data, window: w, now: referenceNow))
+        XCTAssertNil(p.runsOutAt)
+        XCTAssertFalse(p.runsOutBeforeReset)
+    }
+
+    func testCompanionPredictionAtTheLimitSaysLimitReachedWithoutABanner() throws {
+        let w = window(percent: 100, resetsAt: resetsAt)
+        let data = UsagePredictionData(current: 90, ratePerHour: 20, projectedAtReset: 140,
+                                       runsOutAt: referenceNow.addingTimeInterval(1_800),
+                                       basis: "window_average", trendMinutes: 15)
+        let p = try XCTUnwrap(UsageProjection.from(data, window: w, now: referenceNow))
+        XCTAssertEqual(p.current, 100)
+        XCTAssertNil(p.runsOutAt)
+        XCTAssertFalse(p.runsOutBeforeReset)
+        XCTAssertEqual(p.resetSummary(mode: .used), .init(text: "Limit reached", warns: true))
+        XCTAssertEqual(p.resetSummary(mode: .remaining), .init(text: "Limit reached", warns: true))
+        XCTAssertNil(p.bannerLines(title: "Current session", windowSeconds: 18_000))
+        XCTAssertNil(p.detailOutlook(windowSeconds: 18_000))
+        XCTAssertNil(UsageProjection.earliestRunOut([(id: "full", projection: p)]))
+        XCTAssertEqual(p.outlookText, "Limit reached until reset")
+    }
+
+    func testBudgetSwitchesToHourlyInTheLastDay() throws {
+        // A weekly window with 20 hours left and 30 points: 1.5 pts / hr, not 36 a day.
+        let p = projection(rate: 5, current: 70, hoursLeft: 20)
+        let budget = try XCTUnwrap(p.budget(windowSeconds: 604_800))
+        XCTAssertEqual(budget.unit, .hour)
+        XCTAssertEqual(budget.points, 1.5, accuracy: 1e-9)
+        XCTAssertEqual(budget.statText, "1.5 pts / hr")
+        // Just over a day left stays daily.
+        let longer = projection(rate: 5, current: 70, hoursLeft: 25)
+        XCTAssertEqual(try XCTUnwrap(longer.budget(windowSeconds: 604_800)).unit, .day)
+        // And a monthly window with 2 days left stays daily; so does one with 23.9 hours hourly.
+        XCTAssertEqual(try XCTUnwrap(projection(rate: 1, current: 70, hoursLeft: 23.9).budget(windowSeconds: 2_592_000)).unit, .hour)
+    }
+
+    func testTinyBudgetsAreNeverShownAsZero() throws {
+        XCTAssertEqual(UsageProjection.Budget(points: 0.04, unit: .day).pointsText, "<0.1")
+        XCTAssertEqual(UsageProjection.Budget(points: 0.049, unit: .hour).pointsText, "<0.1")
+        XCTAssertEqual(UsageProjection.Budget(points: 0.05, unit: .hour).pointsText, "0.1")
+        XCTAssertEqual(UsageProjection.Budget(points: 0.04, unit: .day).statText, "<0.1 pts / day")
+        XCTAssertEqual(UsageProjection.Budget(points: 0.04, unit: .day).sentenceText, "<0.1 pts a day")
+        // 99.99% used with 6 days left.
+        let p = projection(rate: 1, current: 99.99, hoursLeft: 144)
+        XCTAssertEqual(try XCTUnwrap(p.budget(windowSeconds: 604_800)).statText, "<0.1 pts / day")
+    }
+
+    func testRunOutTimeUsesTheLocalesClock() {
+        let now = date("2026-10-24T21:50:51Z")
+        let p = UsageProjection(current: 80, now: now, resetsAt: now.addingTimeInterval(7 * 86_400), ratePerHour: 1,
+                                projectedAtReset: 250, runsOutAt: date("2026-10-26T14:00:10Z"), basis: .windowAverage)
+        XCTAssertEqual(plain(p.runsOutWhen(locale: Locale(identifier: "en_US"))), "Mon, 2 PM")
+        XCTAssertEqual(plain(p.runsOutWhen(locale: Locale(identifier: "en_GB"))), "Mon, 14:00")
+        XCTAssertEqual(plain(p.runsOutWhen(locale: Locale(identifier: "de_DE"))), "Mo, 14:00")
+        let half = UsageProjection(current: 80, now: now, resetsAt: now.addingTimeInterval(7 * 86_400), ratePerHour: 1,
+                                   projectedAtReset: 250, runsOutAt: date("2026-10-26T14:30:10Z"), basis: .windowAverage)
+        XCTAssertEqual(plain(half.runsOutWhen(locale: Locale(identifier: "en_GB"))), "Mon, 14:30")
+        XCTAssertEqual(plain(half.runsOutWhen(locale: Locale(identifier: "en_US"))), "Mon, 2:30 PM")
+    }
+
+    func testRunOutTimeNeverRoundsToBeforeNow() {
+        // 10 seconds from now, 5-minute rounding would pick 9:50 PM, which has passed.
+        let now = date("2026-10-24T21:52:10Z")
+        let p = UsageProjection(current: 95, now: now, resetsAt: now.addingTimeInterval(3_600), ratePerHour: 50,
+                                projectedAtReset: 150, runsOutAt: now.addingTimeInterval(10), basis: .windowAverage)
+        XCTAssertEqual(plain(p.runsOutWhenText), "Sat, 9:52 PM")
+    }
+
+    func testRunOutTimeNeverRoundsToAfterTheReset() {
+        // Reset at 9:58 PM; rounding 9:57:50 to the nearest 5 minutes gives 10:00 PM.
+        let now = date("2026-10-24T21:50:00Z")
+        let p = UsageProjection(current: 95, now: now, resetsAt: date("2026-10-24T21:58:00Z"), ratePerHour: 50,
+                                projectedAtReset: 150, runsOutAt: date("2026-10-24T21:57:50Z"), basis: .windowAverage)
+        XCTAssertEqual(plain(p.runsOutWhenText), "Sat, 9:58 PM")
     }
 }

@@ -657,6 +657,9 @@ struct WindowDetailSheet: View {
             } icon: {
                 Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
             }
+        } else if !projection.isEstablished {
+            Label(projection.outlookText, systemImage: "clock")
+                .foregroundStyle(.secondary)
         } else {
             Label(projection.outlookText, systemImage: "checkmark.circle.fill")
                 .foregroundStyle(.green)
