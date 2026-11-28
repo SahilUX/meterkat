@@ -27,7 +27,7 @@ Mac/build.sh --install              # Release build signed for this Mac, copied 
 ./companion/install.sh              # then (again) to open it at login
 ```
 
-`Mac/build.sh --notarize` makes a Developer ID build, notarizes and staples it, and writes `build/mac/Meterkat-mac.zip` for download. It needs a Developer ID Application certificate for team 627Y9R25T5 and notarytool credentials saved as the `aiusage` profile (`xcrun notarytool store-credentials aiusage --apple-id <email> --team-id 627Y9R25T5`; set `$NOTARY_PROFILE` to use another name).
+`Mac/build.sh --notarize` makes a Developer ID build, notarizes and staples it, and writes `build/mac/Meterkat.dmg` (the app and an Applications shortcut) for download. It needs a Developer ID Application certificate for team 627Y9R25T5 and notarytool credentials saved as the `meterkat-notary` profile (`xcrun notarytool store-credentials meterkat-notary --apple-id <email> --team-id 627Y9R25T5`; set `$NOTARY_PROFILE` to use another name).
 
 `install.sh --port N` saves the port to `config.json`, so the service, the Mac app, and `meterkat pair` all use it.
 

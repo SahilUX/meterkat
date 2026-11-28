@@ -3,7 +3,7 @@
 #
 #   Mac/build.sh              Release build, signed for this Mac (Apple Development)
 #   Mac/build.sh --install    ...and copy it to /Applications and open it
-#   Mac/build.sh --notarize   Developer ID build, notarized and stapled, zipped for download
+#   Mac/build.sh --notarize   Developer ID build, notarized and stapled, packed in a DMG for download
 #
 # --notarize needs a "Developer ID Application" certificate for team 627Y9R25T5
 # in the keychain, and notarytool credentials saved under the profile in
@@ -60,14 +60,27 @@ if $notarize; then
 PLIST
     xcodebuild -exportArchive -archivePath "$archive" -exportOptionsPlist "$options" \
         -exportPath "$OUT" -quiet
-    zip="$OUT/Meterkat-mac.zip"
+    # Notarize the app first (from a throwaway zip) so its ticket can be stapled inside the DMG.
+    zip="$OUT/Meterkat-notarize.zip"
     ditto -c -k --keepParent "$OUT/$APP_NAME" "$zip"
     xcrun notarytool submit "$zip" --keychain-profile "$NOTARY_PROFILE" --wait
-    xcrun stapler staple "$OUT/$APP_NAME"
-    # Zip again so the download carries the stapled ticket.
     rm "$zip"
-    ditto -c -k --keepParent "$OUT/$APP_NAME" "$zip"
-    echo "$zip"
+    xcrun stapler staple "$OUT/$APP_NAME"
+
+    # The download is a DMG: Meterkat.app next to an Applications shortcut to drag it onto.
+    identity=$(security find-identity -v -p codesigning | awk -v team="($TEAM_ID)" '/Developer ID Application/ && index($0, team) {print $2; exit}')
+    [ -n "$identity" ] || { echo "No Developer ID Application identity for team $TEAM_ID in the keychain." >&2; exit 1; }
+    dmg="$OUT/Meterkat.dmg"
+    stage="$OUT/dmg"
+    mkdir -p "$stage"
+    ditto "$OUT/$APP_NAME" "$stage/$APP_NAME"
+    ln -s /Applications "$stage/Applications"
+    hdiutil create -volname "Meterkat" -srcfolder "$stage" -fs HFS+ -format UDZO -ov "$dmg"
+    rm -r "$stage"
+    codesign --force --sign "$identity" --timestamp "$dmg"
+    xcrun notarytool submit "$dmg" --keychain-profile "$NOTARY_PROFILE" --wait
+    xcrun stapler staple "$dmg"
+    echo "$dmg"
 else
     xcodebuild -project Meterkat.xcodeproj -scheme MeterkatMac -configuration Release -destination "generic/platform=macOS" \
         -derivedDataPath "$derived" build -quiet

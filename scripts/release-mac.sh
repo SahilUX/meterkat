@@ -12,4 +12,4 @@ tag=$1
 }
 gh release view "$tag" --repo SahilUX/meterkat >/dev/null
 Mac/build.sh --notarize
-gh release upload "$tag" build/mac/Meterkat-mac.zip --repo SahilUX/meterkat
+gh release upload "$tag" build/mac/Meterkat.dmg --repo SahilUX/meterkat
