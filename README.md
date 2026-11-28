@@ -41,7 +41,7 @@ Your provider tokens never leave that computer. The apps only see usage numbers.
 | Platform | How to get it |
 |---|---|
 | Companion (macOS, Linux) | `curl -fsSL https://raw.githubusercontent.com/SahilUX/meterkat/main/install.sh \| sh` |
-| Mac app | [`Meterkat-mac.zip`](https://github.com/SahilUX/meterkat/releases/latest) (notarized), or Homebrew (below) |
+| Mac app | [`Meterkat.dmg`](https://github.com/SahilUX/meterkat/releases/latest) (notarized; drag Meterkat to Applications), or Homebrew (below) |
 | Android phone | [`Meterkat-android.apk`](https://github.com/SahilUX/meterkat/releases) |
 | Wear OS | [`Meterkat-wear.apk`](https://github.com/SahilUX/meterkat/releases), installed with `adb install` |
 | iPhone and Apple Watch | TestFlight beta, invite only for now. Or build from source with Xcode |
