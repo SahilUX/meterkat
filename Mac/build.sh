@@ -30,15 +30,21 @@ for arg in "$@"; do
 done
 
 command -v xcodegen >/dev/null || { echo "XcodeGen not found: brew install xcodegen" >&2; exit 1; }
+# Keep all intermediate build data inside this checkout.
+export TMPDIR="${TMPDIR:-/tmp}"
+derived="$REPO/build/DerivedData"
+trap '[ ! -d "$derived" ] || rm -r "$derived"' EXIT
+available_kb=$(df -Pk "$REPO" | awk 'NR == 2 {print $4}')
+[ "$available_kb" -ge 10485760 ] || { echo "At least 10 GiB free disk is required." >&2; exit 1; }
 cd "$REPO"
 xcodegen generate --quiet
-rm -rf "$OUT"
+[ ! -e "$OUT" ] || rm -r "$OUT"
 mkdir -p "$OUT"
 
 if $notarize; then
     archive="$OUT/MeterkatMac.xcarchive"
     xcodebuild -project Meterkat.xcodeproj -scheme MeterkatMac -configuration Release -destination "generic/platform=macOS" \
-        -archivePath "$archive" archive -quiet
+        -derivedDataPath "$derived" -archivePath "$archive" archive -quiet
     options="$OUT/ExportOptions.plist"
     cat > "$options" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -77,7 +83,7 @@ if $install; then
     [ -w "$dest" ] || dest="$HOME/Applications"
     mkdir -p "$dest"
     pkill -f "$dest/$APP_NAME/Contents/MacOS/" 2>/dev/null || true
-    rm -rf "${dest:?}/$APP_NAME"
+    [ ! -e "${dest:?}/$APP_NAME" ] || rm -r "${dest:?}/$APP_NAME"
     ditto "$OUT/$APP_NAME" "$dest/$APP_NAME"
     open -a "$dest/$APP_NAME"
     echo "Installed $dest/$APP_NAME"

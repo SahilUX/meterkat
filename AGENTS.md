@@ -28,7 +28,7 @@ The gitignored `CLAUDE.local.md` holds per-machine notes, such as deploy hosts. 
 ## Release
 
 - Companion: bump `VERSION`, merge, then deploy to every host it runs on, with each host's deploy commands (maintainers keep theirs in the gitignored `CLAUDE.local.md`). The Mac app carries its own copy and updates it from Settings > General.
-- Mac app: `Mac/build.sh --notarize` makes the downloadable zip; `--install` updates this Mac.
-- Android: CI uploads the debug APK. The release APK stays unsigned until a release key is chosen.
+- Mac app: check out the release tag and run `scripts/release-mac.sh vX.Y.Z` to notarize with the existing keychain profile and upload the zip. `Mac/build.sh --install` updates this Mac.
+- Android: pushing a `v*` tag builds signed phone and Wear APKs and uploads both to a GitHub pre-release. Repository secrets: `ANDROID_KEYSTORE_BASE64`, `ANDROID_STORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`. Local release builds use `METERKAT_KEYSTORE_PATH`, `METERKAT_STORE_PASSWORD`, `METERKAT_KEY_ALIAS`, `METERKAT_KEY_PASSWORD`; without them, release builds are unsigned and debug builds work normally. Back up the signing key and passwords before publishing.
 - iPhone and Watch: not distributed yet; build from source with Xcode.
 - Home Assistant integration: bump `version` in `custom_components/meterkat/manifest.json`. Keep `hacs.json` valid.
