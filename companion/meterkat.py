@@ -52,7 +52,7 @@ import devices
 import discovery
 import qr
 
-VERSION = "2.5.8"
+VERSION = "2.5.9"
 DEFAULT_PORT = 47300
 DEFAULT_CACHE_SECONDS = 60
 DEFAULT_POLL_SECONDS = 120
@@ -3879,6 +3879,18 @@ def cmd_update(args, cfg):
         print("This install doesn't record where it came from (installed before 1.9.0).")
         print("Run ./companion/install.sh once from your checkout, or `meterkat update --from PATH`.")
         return 1
+    if src == "release":
+        bootstrap = os.path.join(os.path.dirname(os.path.realpath(__file__)), "bootstrap.sh")
+        if subprocess.run(["/bin/sh", bootstrap, "--files-only"]).returncode != 0:
+            print("Release update failed; the installed files may need reinstalling.")
+            return 1
+        print("Updated from the latest published release.")
+        if os.path.exists(LAUNCHD_PLIST if IS_MAC else SYSTEMD_UNIT):
+            if not restart_service():
+                print("The service failed to restart; see `meterkat status`.")
+                return 1
+            print("Restarted the background service.")
+        return 0
     src = os.path.abspath(os.path.expanduser(src))
     if os.path.isfile(os.path.join(src, "companion", "install.sh")):
         src = os.path.join(src, "companion")  # --from the repo root

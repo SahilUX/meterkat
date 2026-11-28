@@ -28,7 +28,7 @@ if ! python3 -c 'import sys; sys.exit(0 if sys.version_info >= (3, 9) else 1)'; 
     exit 1
 fi
 
-rm -rf "$DEST_DIR"
+[ ! -e "$DEST_DIR" ] || rm -r "$DEST_DIR"
 mkdir -p "$DEST_DIR" "$BIN_DIR"
 cp "$SRC_DIR/meterkat.py" "$DEST_DIR/meterkat.py"
 cp "$SRC_DIR/api_cost.py" "$DEST_DIR/api_cost.py"
@@ -37,7 +37,12 @@ cp "$SRC_DIR/devices.py" "$DEST_DIR/devices.py"
 cp "$SRC_DIR/discovery.py" "$DEST_DIR/discovery.py"
 chmod +x "$DEST_DIR/meterkat.py"
 # `meterkat update` pulls this checkout and copies from it again.
-printf '%s\n' "$SRC_DIR" > "$DEST_DIR/source"
+if [ "${METERKAT_INSTALL_SOURCE:-}" = release ]; then
+    cp "$SRC_DIR/../install.sh" "$DEST_DIR/bootstrap.sh"
+    printf '%s\n' release > "$DEST_DIR/source"
+else
+    printf '%s\n' "$SRC_DIR" > "$DEST_DIR/source"
+fi
 ln -sf "$DEST_DIR/meterkat.py" "$BIN_DIR/meterkat"
 echo "Installed $BIN_DIR/meterkat -> $DEST_DIR/meterkat.py"
 
