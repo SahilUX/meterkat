@@ -30,8 +30,6 @@ for arg in "$@"; do
 done
 
 command -v xcodegen >/dev/null || { echo "XcodeGen not found: brew install xcodegen" >&2; exit 1; }
-# Keep all intermediate build data inside this checkout.
-export TMPDIR="${TMPDIR:-/tmp}"
 derived="$REPO/build/DerivedData"
 trap '[ ! -d "$derived" ] || rm -r "$derived"' EXIT
 available_kb=$(df -Pk "$REPO" | awk 'NR == 2 {print $4}')
@@ -71,7 +69,6 @@ PLIST
     ditto -c -k --keepParent "$OUT/$APP_NAME" "$zip"
     echo "$zip"
 else
-    derived="$REPO/build/DerivedData"
     xcodebuild -project Meterkat.xcodeproj -scheme MeterkatMac -configuration Release -destination "generic/platform=macOS" \
         -derivedDataPath "$derived" build -quiet
     ditto "$derived/Build/Products/Release/$APP_NAME" "$OUT/$APP_NAME"
